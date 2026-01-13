@@ -13,25 +13,28 @@
     <div class="brand">
       <div class="logo" aria-hidden="true">🧠</div>
       <div>
-        <div class="title">Merkzahlen Trainer</div>
-        <div class="subtitle">Karteikarten, Quiz, Punkte. Natürlich alles in deinem Kopf.</div>
+        <div class="title" id="appTitle">Merkzahlen Arena</div>
+        <div class="subtitle" id="appSubtitle">Alle Zahlen, ein Gehirn. Keine Ausreden.</div>
       </div>
     </div>
-    <button id="installBtn" class="btn ghost" hidden>Installieren</button>
+    <div class="topbar-actions">
+      <div class="pill" id="toneBadge">Ton: Normal</div>
+      <button id="installBtn" class="btn ghost" hidden>Installieren</button>
+    </div>
   </header>
 
   <main class="wrap">
     <section class="card">
       <div class="card-h">
         <h2>Setup</h2>
-        <div class="hint">Wähl dein Deck, dann los.</div>
+        <div class="hint">Alles gemischt. Du lernst eh alles.</div>
       </div>
 
       <div class="grid">
-        <label class="field">
+        <div class="field">
           <span>Deck</span>
-          <select id="deckSelect"></select>
-        </label>
+          <div class="deck-pill">Alle Karten • gemischt</div>
+        </div>
 
         <label class="field">
           <span>Modus</span>
@@ -92,6 +95,7 @@
             <div class="pill" id="qIndex">1/1</div>
             <div class="pill" id="qScore">Score: 0</div>
             <div class="pill" id="qStreak">Streak: 0</div>
+            <div class="pill" id="qLevel">Level: 1</div>
           </div>
           <div class="q" id="question">–</div>
           <div class="a" id="answer" hidden>–</div>
@@ -130,6 +134,46 @@
       </div>
     </section>
 
+    <section class="card">
+      <div class="card-h">
+        <h2>Vibes & Settings</h2>
+        <div class="hint">Mach es dir angenehm. Oder schwer. Deine Wahl.</div>
+      </div>
+      <div class="grid">
+        <label class="field">
+          <span>Theme</span>
+          <select id="themeSelect"></select>
+        </label>
+        <label class="field">
+          <span>Light / Dark</span>
+          <select id="modeSelectUi">
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Sprache / Ton</span>
+          <select id="toneSelect"></select>
+        </label>
+        <label class="field">
+          <span>Ambient Sound</span>
+          <select id="soundSelect"></select>
+        </label>
+        <label class="field">
+          <span>Sound an/aus</span>
+          <button id="soundToggle" class="btn">Sound aus</button>
+        </label>
+        <label class="field">
+          <span>Lautstärke</span>
+          <input id="soundVolume" type="range" min="0" max="1" step="0.01" value="0.35" />
+        </label>
+      </div>
+      <div class="actions">
+        <button id="previewThemeBtn" class="btn">Theme-Test</button>
+        <button id="resetSettingsBtn" class="btn ghost">Settings zurücksetzen</button>
+      </div>
+    </section>
+
     <section class="footer">
       <div class="tiny">
         Läuft offline (PWA), speichert nur lokal (localStorage). Keine Cloud. Kein Drama.
@@ -137,6 +181,8 @@
     </section>
   </main>
 
+  <div id="confetti" class="confetti" aria-hidden="true"></div>
+  <audio id="ambientAudio" loop preload="none" crossorigin="anonymous"></audio>
   <script src="app.js"></script>
 </body>
 </html>
