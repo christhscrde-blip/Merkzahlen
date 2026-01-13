@@ -112,12 +112,12 @@ function loadProfile() {
   const fallback = {
     xp: 0,
     tone: "normal",
-    theme: "noir",
+    theme: "neon-core",
     mode: "dark",
     soundOn: false,
     sound: "forest",
     volume: 0.35,
-    unlockedThemes: ["noir"]
+    unlockedThemes: ["neon-core"]
   };
   try {
     const stored = JSON.parse(localStorage.getItem(PROFILE_KEY) || "null");
@@ -132,10 +132,10 @@ function saveProfile(p) {
 }
 
 const THEMES = [
-  { id: "noir", label: "Noir (Standard)", unlock: 1 },
-  { id: "neon", label: "Neon Mirage", unlock: 3 },
-  { id: "solar", label: "Solar Bloom", unlock: 5 },
-  { id: "brutal", label: "Brutal Glow", unlock: 7 }
+  { id: "neon-core", label: "Neon Core", unlock: 1 },
+  { id: "aurora-drift", label: "Aurora Drift", unlock: 1 },
+  { id: "ember-glow", label: "Ember Glow", unlock: 1 },
+  { id: "brutal-ink", label: "Brutal Ink", unlock: 4 }
 ];
 
 const SOUNDS = [
@@ -282,6 +282,7 @@ function applyTheme(themeId, mode) {
 function renderThemeOptions() {
   const info = levelInfo(profile.xp);
   els.themeSelect.innerHTML = "";
+  const unlocked = THEMES.filter(theme => info.level >= theme.unlock);
   THEMES.forEach(theme => {
     const opt = document.createElement("option");
     opt.value = theme.id;
@@ -292,6 +293,10 @@ function renderThemeOptions() {
     }
     els.themeSelect.appendChild(opt);
   });
+  const fallbackTheme = unlocked[0]?.id || THEMES[0].id;
+  if (!unlocked.find(theme => theme.id === profile.theme)) {
+    profile.theme = fallbackTheme;
+  }
   els.themeSelect.value = profile.theme;
 }
 
@@ -643,6 +648,19 @@ async function boot(){
   DB = await res.json();
   ALL_CARDS = Object.values(DB).flat();
   profile = loadProfile();
+  const themeIds = THEMES.map(theme => theme.id);
+  if (!themeIds.includes(profile.theme)) {
+    profile.theme = THEMES[0].id;
+  }
+  if (!TONES[profile.tone]) {
+    profile.tone = "normal";
+  }
+  if (!["dark", "light"].includes(profile.mode)) {
+    profile.mode = "dark";
+  }
+  if (!SOUNDS.find(sound => sound.id === profile.sound)) {
+    profile.sound = SOUNDS[0].id;
+  }
 
   renderThemeOptions();
   els.toneSelect.value = profile.tone;
@@ -664,6 +682,10 @@ async function boot(){
     if (!session) return;
     shuffle(session.cards);
     session.idx = 0;
+    session.score = 0;
+    session.streak = 0;
+    session.correct = 0;
+    session.wrong = 0;
     renderQuestion();
   });
   els.resetBtn.addEventListener("click", resetAll);

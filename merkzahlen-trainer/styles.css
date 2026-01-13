@@ -31,15 +31,19 @@ body[data-mode="light"]{
   --shadow: 0 12px 30px rgba(10,20,30,.12);
   background: radial-gradient(900px 600px at 20% 0%, #ffffff 0%, #f1f4fb 50%, #e8eef7 100%);
 }
-body[data-theme="neon"]{
+body[data-theme="neon-core"]{
   --accent:#8b5bff;
   --accent2:#58ffe1;
 }
-body[data-theme="solar"]{
+body[data-theme="aurora-drift"]{
+  --accent:#48c6ef;
+  --accent2:#6f86ff;
+}
+body[data-theme="ember-glow"]{
   --accent:#ff8a5c;
   --accent2:#ffd66b;
 }
-body[data-theme="brutal"]{
+body[data-theme="brutal-ink"]{
   --accent:#ff4d6d;
   --accent2:#ff9f43;
 }
