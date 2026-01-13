@@ -280,22 +280,16 @@ function applyTheme(themeId, mode) {
 }
 
 function renderThemeOptions() {
-  const info = levelInfo(profile.xp);
   els.themeSelect.innerHTML = "";
-  const unlocked = THEMES.filter(theme => info.level >= theme.unlock);
   THEMES.forEach(theme => {
     const opt = document.createElement("option");
     opt.value = theme.id;
     opt.textContent = theme.label;
-    opt.disabled = info.level < theme.unlock;
-    if (info.level < theme.unlock) {
-      opt.textContent += ` (ab Level ${theme.unlock})`;
-    }
     els.themeSelect.appendChild(opt);
   });
-  const fallbackTheme = unlocked[0]?.id || THEMES[0].id;
-  if (!unlocked.find(theme => theme.id === profile.theme)) {
-    profile.theme = fallbackTheme;
+  const themeIds = THEMES.map(theme => theme.id);
+  if (!themeIds.includes(profile.theme)) {
+    profile.theme = THEMES[0].id;
   }
   els.themeSelect.value = profile.theme;
 }
