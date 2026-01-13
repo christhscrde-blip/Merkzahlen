@@ -13,26 +13,24 @@
     <div class="brand">
       <div class="logo" aria-hidden="true">🧠</div>
       <div>
-        <div class="title">Merkzahlen Trainer</div>
-        <div class="subtitle">Karteikarten, Quiz, Punkte. Natürlich alles in deinem Kopf.</div>
+        <div class="title" id="appTitle">Merkzahlen Trainer</div>
+        <div class="subtitle" id="appSubtitle">Karteikarten, Quiz, Punkte. Natürlich alles in deinem Kopf.</div>
+        <div class="toneTag" id="toneTag">Ton: normal</div>
       </div>
     </div>
-    <button id="installBtn" class="btn ghost" hidden>Installieren</button>
+    <div class="topActions">
+      <button id="installBtn" class="btn ghost" hidden>Installieren</button>
+    </div>
   </header>
 
   <main class="wrap">
     <section class="card">
       <div class="card-h">
         <h2>Setup</h2>
-        <div class="hint">Wähl dein Deck, dann los.</div>
+        <div class="hint" id="setupHint">Alles gemischt. Kein Ausweichen.</div>
       </div>
 
       <div class="grid">
-        <label class="field">
-          <span>Deck</span>
-          <select id="deckSelect"></select>
-        </label>
-
         <label class="field">
           <span>Modus</span>
           <select id="modeSelect">
@@ -80,6 +78,51 @@
       </div>
     </section>
 
+    <section class="card" id="settingsCard">
+      <div class="card-h">
+        <h2>Settings & Vibes</h2>
+        <div class="hint">Optik, Ton, Sound. Alles lokal.</div>
+      </div>
+
+      <div class="grid settingsGrid">
+        <label class="field">
+          <span>Theme</span>
+          <select id="themeSelect"></select>
+          <div class="fieldNote" id="themeLockNote">Themes werden per Level freigeschaltet.</div>
+        </label>
+
+        <label class="field">
+          <span>App-Ton</span>
+          <select id="toneSelect">
+            <option value="normal">Normal</option>
+            <option value="ironic">Ironisch</option>
+            <option value="brutal">Brutal ehrlich</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Darstellung</span>
+          <select id="modeSelectUi">
+            <option value="dark">Dark Mode</option>
+            <option value="light">Light Mode</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Ambient Sound</span>
+          <select id="soundSelect"></select>
+        </label>
+
+        <label class="field">
+          <span>Sound</span>
+          <div class="toggleRow">
+            <button id="soundToggle" class="btn ghost">Sound: Aus</button>
+            <input id="soundVolume" type="range" min="0" max="1" step="0.05" value="0.35" />
+          </div>
+        </label>
+      </div>
+    </section>
+
     <section class="card" id="playCard" hidden>
       <div class="card-h">
         <h2 id="playTitle">Session</h2>
@@ -92,7 +135,10 @@
             <div class="pill" id="qIndex">1/1</div>
             <div class="pill" id="qScore">Score: 0</div>
             <div class="pill" id="qStreak">Streak: 0</div>
+            <div class="pill" id="qLevel">Level: 1</div>
+            <div class="pill" id="qXp">XP: 0</div>
           </div>
+          <div class="streakStatus" id="streakStatus">Streaks, die schmerzen: aus.</div>
           <div class="q" id="question">–</div>
           <div class="a" id="answer" hidden>–</div>
 
@@ -120,6 +166,15 @@
           </div>
 
           <div class="sideCard">
+            <div class="sideTitle">Upgrade</div>
+            <div class="sideRow"><span>Level</span><b id="levelLabel">1</b></div>
+            <div class="levelBar">
+              <div class="levelFill" id="levelFill" style="width: 0%"></div>
+            </div>
+            <div class="sideText" id="levelHint">Sammle XP, schalte Themes frei.</div>
+          </div>
+
+          <div class="sideCard">
             <div class="sideTitle">Spaced-Repetition</div>
             <div class="sideText">
               ✅ = Karte wandert weiter raus (später fällig) <br/>
@@ -130,12 +185,19 @@
       </div>
     </section>
 
-    <section class="footer">
-      <div class="tiny">
-        Läuft offline (PWA), speichert nur lokal (localStorage). Keine Cloud. Kein Drama.
-      </div>
-    </section>
+  <section class="footer">
+    <div class="tiny">
+      Läuft offline (PWA), speichert nur lokal (localStorage). Keine Cloud. Kein Drama.
+    </div>
+  </section>
   </main>
+
+  <div class="levelUpBanner" id="levelUpBanner" aria-live="polite" hidden>
+    <div class="levelUpTitle">Level Up!</div>
+    <div class="levelUpText" id="levelUpText">Upgrade freigeschaltet.</div>
+  </div>
+  <canvas id="confettiCanvas" aria-hidden="true"></canvas>
+  <audio id="ambientAudio" loop></audio>
 
   <script src="app.js"></script>
 </body>
