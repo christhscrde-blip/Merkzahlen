@@ -1,0 +1,290 @@
+{
+  "Klasse 7": [
+    {
+      "id": "k7-1096",
+      "prompt": "1096",
+      "answer": "Beginn der Kreuzzüge"
+    },
+    {
+      "id": "k7-12jh",
+      "prompt": "12. Jh.",
+      "answer": "Gründung von Städten im Mittelalter"
+    },
+    {
+      "id": "k7-1445",
+      "prompt": "um 1445",
+      "answer": "Erfindung des Buchdrucks mit beweglichen Lettern (Johannes Gutenberg)"
+    },
+    {
+      "id": "k7-1492",
+      "prompt": "1492",
+      "answer": "Entdeckung Amerikas durch Kolumbus"
+    },
+    {
+      "id": "k7-luther",
+      "prompt": "1483–1546",
+      "answer": "Martin Luther"
+    },
+    {
+      "id": "k7-1517",
+      "prompt": "31.10.1517",
+      "answer": "Ablassthesen Martin Luthers in Wittenberg"
+    },
+    {
+      "id": "k7-magellan",
+      "prompt": "1519–1522",
+      "answer": "1. Weltumsegelung Magellans"
+    },
+    {
+      "id": "k7-1555",
+      "prompt": "1555",
+      "answer": "Augsburger Religionsfrieden"
+    },
+    {
+      "id": "k7-30jk",
+      "prompt": "1618–1648",
+      "answer": "Dreißigjähriger Krieg"
+    },
+    {
+      "id": "k7-ludwigxiv",
+      "prompt": "1643–1715",
+      "answer": "Ludwig XIV. – König von Frankreich"
+    },
+    {
+      "id": "k7-friedrichii",
+      "prompt": "1740–1786",
+      "answer": "Friedrich II. – König von Preußen"
+    }
+  ],
+  "Klasse 8": [
+    {
+      "id": "k8-1750",
+      "prompt": "um 1750",
+      "answer": "Beginn der Industriellen Revolution in England"
+    },
+    {
+      "id": "k8-1789",
+      "prompt": "1789–1795",
+      "answer": "Französische Revolution"
+    },
+    {
+      "id": "k8-1834",
+      "prompt": "1834",
+      "answer": "Gründung des Deutschen Zollvereins"
+    },
+    {
+      "id": "k8-1835",
+      "prompt": "1835",
+      "answer": "Erste Deutsche Eisenbahn (Nürnberg–Fürth)"
+    }
+  ],
+  "Klasse 9": [
+    {
+      "id": "k9-ww1",
+      "prompt": "1914–1918",
+      "answer": "Erster Weltkrieg"
+    },
+    {
+      "id": "k9-1917",
+      "prompt": "1917",
+      "answer": "Oktoberrevolution in Russland"
+    },
+    {
+      "id": "k9-1918",
+      "prompt": "1918",
+      "answer": "Novemberrevolution in Deutschland"
+    },
+    {
+      "id": "k9-09111918",
+      "prompt": "09.11.1918",
+      "answer": "Abdankung des Kaisers – Proklamation der Republik"
+    },
+    {
+      "id": "k9-versailles",
+      "prompt": "1919",
+      "answer": "Versailler Vertrag"
+    },
+    {
+      "id": "k9-voelkerbund",
+      "prompt": "1919 (2)",
+      "answer": "Gründung des Völkerbundes"
+    },
+    {
+      "id": "k9-weimar",
+      "prompt": "1919–1933",
+      "answer": "Weimarer Republik"
+    },
+    {
+      "id": "k9-1923",
+      "prompt": "1923",
+      "answer": "Krisenjahr der Weimarer Republik (Ruhrbesetzung, Inflation, Hitlerputsch)"
+    },
+    {
+      "id": "k9-1924",
+      "prompt": "1924",
+      "answer": "Dawesplan zur Regelung der Reparationszahlungen"
+    },
+    {
+      "id": "k9-1925",
+      "prompt": "1925",
+      "answer": "Wahl Hindenburgs zum Reichspräsidenten"
+    },
+    {
+      "id": "k9-1926",
+      "prompt": "1926",
+      "answer": "Aufnahme Deutschlands in den Völkerbund"
+    },
+    {
+      "id": "k9-1929",
+      "prompt": "1929",
+      "answer": "Beginn der Weltwirtschaftskrise"
+    },
+    {
+      "id": "k9-30011933",
+      "prompt": "30.01.1933",
+      "answer": "Hindenburg beruft Hitler zum Reichskanzler"
+    },
+    {
+      "id": "k9-27021933",
+      "prompt": "27.02.1933",
+      "answer": "Reichstagsbrand"
+    }
+  ],
+  "Klasse 10": [
+    {
+      "id": "k10-23031933",
+      "prompt": "23.03.1933",
+      "answer": "Beschluss des Ermächtigungsgesetzes durch den Reichstag"
+    },
+    {
+      "id": "k10-1934",
+      "prompt": "1934",
+      "answer": "Tod Hindenburgs → Hitler „Führer des deutschen Volkes“"
+    },
+    {
+      "id": "k10-1935",
+      "prompt": "1935",
+      "answer": "Nürnberger Gesetze"
+    },
+    {
+      "id": "k10-1938",
+      "prompt": "1938",
+      "answer": "Münchener Abkommen"
+    },
+    {
+      "id": "k10-0910111938",
+      "prompt": "09./10.11.1938",
+      "answer": "Reichspogromnacht"
+    },
+    {
+      "id": "k10-23081939",
+      "prompt": "23.08.1939",
+      "answer": "Deutsch-sowjetischer Nichtangriffspakt („Hitler–Stalin–Pakt“)"
+    },
+    {
+      "id": "k10-1939-45",
+      "prompt": "1939–1945",
+      "answer": "Zweiter Weltkrieg"
+    },
+    {
+      "id": "k10-01091939",
+      "prompt": "01.09.1939",
+      "answer": "Deutscher Überfall auf Polen – Beginn des Zweiten Weltkrieges"
+    },
+    {
+      "id": "k10-1941",
+      "prompt": "1941",
+      "answer": "Deutscher Angriff auf die UdSSR"
+    },
+    {
+      "id": "k10-070809051945",
+      "prompt": "07./08./09.05.1945",
+      "answer": "Bedingungslose Kapitulation"
+    },
+    {
+      "id": "k10-juni1945",
+      "prompt": "Juni 1945",
+      "answer": "Gründung der UNO"
+    },
+    {
+      "id": "k10-august1945",
+      "prompt": "August 1945",
+      "answer": "Potsdamer Abkommen"
+    },
+    {
+      "id": "k10-april1946",
+      "prompt": "April 1946",
+      "answer": "Zwangsvereinigung von KPD und SPD zur SED"
+    },
+    {
+      "id": "k10-1947",
+      "prompt": "1947",
+      "answer": "Marshall-Plan"
+    },
+    {
+      "id": "k10-1948",
+      "prompt": "1948",
+      "answer": "Währungsreform in den Besatzungszonen"
+    },
+    {
+      "id": "k10-1948-49",
+      "prompt": "1948/49",
+      "answer": "Berlin-Blockade"
+    },
+    {
+      "id": "k10-23051949",
+      "prompt": "23.05.1949",
+      "answer": "Gründung der BRD"
+    },
+    {
+      "id": "k10-07101949",
+      "prompt": "07.10.1949",
+      "answer": "Gründung der DDR"
+    },
+    {
+      "id": "k10-1949-nato",
+      "prompt": "1949",
+      "answer": "Gründung der NATO"
+    },
+    {
+      "id": "k10-05031953",
+      "prompt": "05.03.1953",
+      "answer": "Tod Stalins"
+    },
+    {
+      "id": "k10-17061953",
+      "prompt": "17.06.1953",
+      "answer": "Arbeiteraufstand in der DDR"
+    },
+    {
+      "id": "k10-1955-paris",
+      "prompt": "1955",
+      "answer": "Pariser Verträge (Beitritt der BRD zur NATO)"
+    },
+    {
+      "id": "k10-1955-warschau",
+      "prompt": "1955 (2)",
+      "answer": "Beitritt der DDR zum Warschauer Pakt"
+    },
+    {
+      "id": "k10-13081961",
+      "prompt": "13.08.1961",
+      "answer": "Errichtung der Mauer in Berlin"
+    },
+    {
+      "id": "k10-1989",
+      "prompt": "1989",
+      "answer": "Friedliche Revolution in der DDR"
+    },
+    {
+      "id": "k10-09111989",
+      "prompt": "09.11.1989",
+      "answer": "Fall der Berliner Mauer"
+    },
+    {
+      "id": "k10-03101990",
+      "prompt": "03.10.1990",
+      "answer": "Beitritt der DDR zur Bundesrepublik Deutschlands"
+    }
+  ]
+}

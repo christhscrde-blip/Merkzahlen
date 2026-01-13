@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b0f14" />
+  <title>Merkzahlen Trainer</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">🧠</div>
+      <div>
+        <div class="title">Merkzahlen Trainer</div>
+        <div class="subtitle">Karteikarten, Quiz, Punkte. Natürlich alles in deinem Kopf.</div>
+      </div>
+    </div>
+    <button id="installBtn" class="btn ghost" hidden>Installieren</button>
+  </header>
+
+  <main class="wrap">
+    <section class="card">
+      <div class="card-h">
+        <h2>Setup</h2>
+        <div class="hint">Wähl dein Deck, dann los.</div>
+      </div>
+
+      <div class="grid">
+        <label class="field">
+          <span>Deck</span>
+          <select id="deckSelect"></select>
+        </label>
+
+        <label class="field">
+          <span>Modus</span>
+          <select id="modeSelect">
+            <option value="cards">Karteikarten</option>
+            <option value="mc">Multiple Choice</option>
+            <option value="type">Tippen</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Richtung</span>
+          <select id="dirSelect">
+            <option value="year2event">Merkzahl → Ereignis</option>
+            <option value="event2year">Ereignis → Merkzahl</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Schwierigkeit</span>
+          <select id="difficulty">
+            <option value="mix">Gemischt</option>
+            <option value="new">Nur neu/unsicher</option>
+            <option value="due">Fällig (Spaced)</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Fragen pro Session</span>
+          <input id="sessionSize" type="number" min="5" max="100" value="20" />
+        </label>
+
+        <div class="field">
+          <span>Fortschritt</span>
+          <div class="statline">
+            <div class="pill" id="statDue">Fällig: –</div>
+            <div class="pill" id="statMastered">Sicher: –</div>
+            <button id="resetBtn" class="btn danger">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="startBtn" class="btn primary">Start</button>
+        <button id="shuffleBtn" class="btn">Mischen</button>
+      </div>
+    </section>
+
+    <section class="card" id="playCard" hidden>
+      <div class="card-h">
+        <h2 id="playTitle">Session</h2>
+        <div class="hint" id="playHint">Bleib ruhig. Geschichte rennt nicht weg.</div>
+      </div>
+
+      <div class="play">
+        <div class="qbox">
+          <div class="qmeta">
+            <div class="pill" id="qIndex">1/1</div>
+            <div class="pill" id="qScore">Score: 0</div>
+            <div class="pill" id="qStreak">Streak: 0</div>
+          </div>
+          <div class="q" id="question">–</div>
+          <div class="a" id="answer" hidden>–</div>
+
+          <div id="mcArea" class="mc" hidden></div>
+
+          <div id="typeArea" class="type" hidden>
+            <input id="typeInput" type="text" placeholder="Antwort eintippen…" autocomplete="off" />
+            <button id="checkBtn" class="btn">Prüfen</button>
+          </div>
+
+          <div class="playActions">
+            <button id="revealBtn" class="btn ghost">Aufdecken</button>
+            <button id="goodBtn" class="btn ok" hidden>✅ Konnte ich</button>
+            <button id="badBtn" class="btn danger" hidden>❌ Nope</button>
+            <button id="nextBtn" class="btn primary" hidden>Weiter</button>
+          </div>
+        </div>
+
+        <aside class="side">
+          <div class="sideCard">
+            <div class="sideTitle">Mini-Stats</div>
+            <div class="sideRow"><span>Richtig</span><b id="sCorrect">0</b></div>
+            <div class="sideRow"><span>Falsch</span><b id="sWrong">0</b></div>
+            <div class="sideRow"><span>Genauigkeit</span><b id="sAcc">–</b></div>
+          </div>
+
+          <div class="sideCard">
+            <div class="sideTitle">Spaced-Repetition</div>
+            <div class="sideText">
+              ✅ = Karte wandert weiter raus (später fällig) <br/>
+              ❌ = Karte kommt schneller wieder.
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="footer">
+      <div class="tiny">
+        Läuft offline (PWA), speichert nur lokal (localStorage). Keine Cloud. Kein Drama.
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
