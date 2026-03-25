@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#13111c" />
+  <title>Merkzahlen Atelier</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="appShell">
+    <header class="hero">
+      <div class="heroCopy">
+        <p class="eyebrow">Merkzahlen Atelier</p>
+        <h1>Geschichte lernen wie ein Trainingsraum, nicht wie ein Chatfenster.</h1>
+        <p class="heroText">
+          Baue gezielte Sessions, trainiere nur fällige oder unsichere Daten und lass dir nach jeder Runde
+          zeigen, was wirklich sitzt.
+        </p>
+        <div class="heroActions">
+          <button id="startBtn" class="btn btnPrimary">Session starten</button>
+          <button id="installBtn" class="btn btnGhost" hidden>PWA installieren</button>
+        </div>
+      </div>
+
+      <div class="heroPanel">
+        <div class="heroPanelCard spotlight">
+          <span class="spotlightLabel">Heute relevant</span>
+          <strong id="heroDue">0 Karten fällig</strong>
+          <p id="heroFocus">Wähle einen Schwerpunkt und starte direkt mit den wichtigsten Karten.</p>
+        </div>
+
+        <div class="heroPanelGrid">
+          <div class="heroStat">
+            <span>Beherrscht</span>
+            <strong id="statMastered">0</strong>
+          </div>
+          <div class="heroStat">
+            <span>Schwachstellen</span>
+            <strong id="statWeak">0</strong>
+          </div>
+          <div class="heroStat">
+            <span>Trefferquote</span>
+            <strong id="statAccuracy">-</strong>
+          </div>
+          <div class="heroStat">
+            <span>Aktive Klassen</span>
+            <strong id="statDecks">4</strong>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="controlRail">
+        <article class="panel">
+          <div class="panelHead">
+            <div>
+              <p class="panelKicker">Session-Architektur</p>
+              <h2>Was soll diese Runde leisten?</h2>
+            </div>
+            <p class="panelHint" id="sessionHint">Gezielte Wiederholung schlägt Deko.</p>
+          </div>
+
+          <div class="controlGrid">
+            <label class="field">
+              <span>Lernmodus</span>
+              <select id="modeSelect">
+                <option value="mix">Intelligenter Mix</option>
+                <option value="cards">Karteikarten</option>
+                <option value="mc">Multiple Choice</option>
+                <option value="type">Tippen</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Richtung</span>
+              <select id="dirSelect">
+                <option value="year2event">Merkzahl -> Ereignis</option>
+                <option value="event2year">Ereignis -> Merkzahl</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Fokus</span>
+              <select id="focusSelect">
+                <option value="mixed">Gemischt, aber priorisiert</option>
+                <option value="due">Nur fällig</option>
+                <option value="new">Nur neu</option>
+                <option value="weak">Nur unsicher</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Fragen</span>
+              <input id="sessionSize" type="number" min="5" max="60" value="16" />
+            </label>
+          </div>
+
+          <div class="segmented" id="themeSwitch" aria-label="Farbstil">
+            <button type="button" data-theme="atelier-night" class="segmentedBtn isActive">Atelier Night</button>
+            <button type="button" data-theme="paper-sun">Paper Sun</button>
+            <button type="button" data-theme="oxide-pulse">Oxide Pulse</button>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panelHead">
+            <div>
+              <p class="panelKicker">Kurskarte</p>
+              <h2>Welche Klassen sollen drin sein?</h2>
+            </div>
+            <button id="toggleAllDecksBtn" class="btn btnGhost">Alle umschalten</button>
+          </div>
+
+          <div class="deckChips" id="deckFilter"></div>
+          <p class="microcopy" id="deckSummary">Alle Klassen aktiv.</p>
+        </article>
+
+        <article class="panel">
+          <div class="panelHead">
+            <div>
+              <p class="panelKicker">Lernsystem</p>
+              <h2>Was wichtig ist</h2>
+            </div>
+          </div>
+
+          <ul class="priorityList">
+            <li>Spaced Repetition bleibt erhalten, weil sie direkt Lernleistung verbessert.</li>
+            <li>Fehlerfokus und Klassenfilter sind neu, damit Sessions gezielt statt zufällig werden.</li>
+            <li>Sound, Ton-Personas und Theme-Unlocks wurden entfernt, weil sie den Kernfluss eher verwässern.</li>
+          </ul>
+
+          <div class="quickStats">
+            <div class="quickStatCard">
+              <span>Fällig</span>
+              <strong id="quickDue">0</strong>
+            </div>
+            <div class="quickStatCard">
+              <span>Neu</span>
+              <strong id="quickNew">0</strong>
+            </div>
+            <div class="quickStatCard">
+              <span>Unsicher</span>
+              <strong id="quickWeak">0</strong>
+            </div>
+            <div class="quickStatCard">
+              <span>Reset</span>
+              <button id="resetBtn" class="btn btnDanger">Fortschritt löschen</button>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="practiceRail">
+        <article class="sessionStage panel" id="playCard" hidden>
+          <div class="stageHead">
+            <div>
+              <p class="panelKicker">Live-Session</p>
+              <h2 id="playTitle">Trainingsrunde</h2>
+            </div>
+            <div class="stageMeta">
+              <span class="badge" id="qIndex">1/1</span>
+              <span class="badge" id="qModeLabel">Mix</span>
+              <span class="badge" id="qStreak">Serie 0</span>
+            </div>
+          </div>
+
+          <div class="stageBody">
+            <div class="promptRail">
+              <p class="promptContext" id="questionContext">Klasse 7 · Fällig</p>
+              <div class="question" id="question">-</div>
+              <div class="answer" id="answer" hidden>-</div>
+
+              <div id="mcArea" class="optionGrid" hidden></div>
+
+              <div id="typeArea" class="typeArea" hidden>
+                <input id="typeInput" type="text" autocomplete="off" placeholder="Antwort eintippen" />
+                <button id="checkBtn" class="btn btnGhost">Prüfen</button>
+              </div>
+
+              <div class="actionRow">
+                <button id="revealBtn" class="btn btnGhost">Antwort zeigen</button>
+                <button id="goodBtn" class="btn btnPositive" hidden>Sitzt</button>
+                <button id="badBtn" class="btn btnDanger" hidden>Noch nicht</button>
+                <button id="nextBtn" class="btn btnPrimary" hidden>Weiter</button>
+              </div>
+            </div>
+
+            <aside class="insightRail">
+              <div class="insightCard">
+                <span>Score</span>
+                <strong id="qScore">0</strong>
+              </div>
+              <div class="insightCard">
+                <span>Richtig</span>
+                <strong id="sCorrect">0</strong>
+              </div>
+              <div class="insightCard">
+                <span>Falsch</span>
+                <strong id="sWrong">0</strong>
+              </div>
+              <div class="insightCard">
+                <span>Genauigkeit</span>
+                <strong id="sAcc">-</strong>
+              </div>
+              <div class="sessionNote" id="playHint">
+                Eine saubere Session ist kurz, fokussiert und lässt dir am Ende klare Baustellen übrig.
+              </div>
+            </aside>
+          </div>
+        </article>
+
+        <article class="panel" id="summaryCard">
+          <div class="panelHead">
+            <div>
+              <p class="panelKicker">Analyse</p>
+              <h2>Session-Zusammenfassung</h2>
+            </div>
+          </div>
+
+          <div id="summaryEmpty" class="emptyState">
+            Starte eine Runde. Danach bekommst du hier eine kompakte Auswertung mit Genauigkeit, Serie und den schwächsten Karten.
+          </div>
+
+          <div id="summaryContent" class="summaryContent" hidden>
+            <div class="summaryGrid">
+              <div class="summaryCard">
+                <span>Trefferquote</span>
+                <strong id="summaryAccuracy">0%</strong>
+              </div>
+              <div class="summaryCard">
+                <span>Beste Serie</span>
+                <strong id="summaryBestStreak">0</strong>
+              </div>
+              <div class="summaryCard">
+                <span>Bearbeitet</span>
+                <strong id="summaryTotal">0</strong>
+              </div>
+              <div class="summaryCard">
+                <span>Empfehlung</span>
+                <strong id="summaryRecommendation">-</strong>
+              </div>
+            </div>
+
+            <div class="summaryListWrap">
+              <h3>Diese Karten brauchen noch Wiederholung</h3>
+              <ul id="summaryWeakList" class="summaryList"></ul>
+            </div>
+          </div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
