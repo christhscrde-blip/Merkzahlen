@@ -1,786 +1,715 @@
+const AppCore = (() => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const STORAGE_KEY = "merkzahlen_progress_v2";
+  const PROFILE_KEY = "merkzahlen_profile_v2";
+  const INTERVALS = [0, 1, 3, 7, 14, 30, 60].map((days) => days * DAY);
 
-/*
-  Merkzahlen Trainer
-  - Single-file SPA + PWA
-  - localStorage Leitner/Spaced repetition (simple but effective)
-  - Modes: cards, multiple choice, typing
-*/
-
-const $ = (sel) => document.querySelector(sel);
-
-const els = {
-  modeSelect: $("#modeSelect"),
-  dirSelect: $("#dirSelect"),
-  difficulty: $("#difficulty"),
-  sessionSize: $("#sessionSize"),
-  startBtn: $("#startBtn"),
-  shuffleBtn: $("#shuffleBtn"),
-  resetBtn: $("#resetBtn"),
-
-  appTitle: $("#appTitle"),
-  appSubtitle: $("#appSubtitle"),
-  toneTag: $("#toneTag"),
-  setupHint: $("#setupHint"),
-  themeSelect: $("#themeSelect"),
-  toneSelect: $("#toneSelect"),
-  modeSelectUi: $("#modeSelectUi"),
-  soundSelect: $("#soundSelect"),
-  soundToggle: $("#soundToggle"),
-  soundVolume: $("#soundVolume"),
-
-  playCard: $("#playCard"),
-  playTitle: $("#playTitle"),
-  playHint: $("#playHint"),
-
-  qIndex: $("#qIndex"),
-  qScore: $("#qScore"),
-  qStreak: $("#qStreak"),
-  qLevel: $("#qLevel"),
-  qXp: $("#qXp"),
-  question: $("#question"),
-  answer: $("#answer"),
-  streakStatus: $("#streakStatus"),
-
-  mcArea: $("#mcArea"),
-  typeArea: $("#typeArea"),
-  typeInput: $("#typeInput"),
-  checkBtn: $("#checkBtn"),
-
-  revealBtn: $("#revealBtn"),
-  goodBtn: $("#goodBtn"),
-  badBtn: $("#badBtn"),
-  nextBtn: $("#nextBtn"),
-
-  sCorrect: $("#sCorrect"),
-  sWrong: $("#sWrong"),
-  sAcc: $("#sAcc"),
-
-  levelLabel: $("#levelLabel"),
-  levelFill: $("#levelFill"),
-  levelHint: $("#levelHint"),
-
-  statDue: $("#statDue"),
-  statMastered: $("#statMastered"),
-
-  levelUpBanner: $("#levelUpBanner"),
-  levelUpText: $("#levelUpText"),
-  confettiCanvas: $("#confettiCanvas"),
-  ambientAudio: $("#ambientAudio"),
-
-  installBtn: $("#installBtn"),
-};
-
-const STORAGE_KEY = "merkzahlen_trainer_v1";
-const PROFILE_KEY = "merkzahlen_profile_v1";
-const DAY = 24 * 60 * 60 * 1000;
-const XP_PER_LEVEL = 120;
-
-// Leitner intervals (box -> ms)
-const INTERVALS = [0, 1, 3, 7, 14, 30, 60].map(d => d * DAY);
-
-let DB = null;
-let ALL_CARDS = [];
-let session = null;
-let installPrompt = null;
-let profile = null;
-let confettiCtx = null;
-
-function now() { return Date.now(); }
-
-function normalizeText(s) {
-  return (s || "")
-    .toLowerCase()
-    .replaceAll("–","-")
-    .replaceAll("—","-")
-    .replace(/[^\p{L}\p{N}\s\-\.\/]/gu,"")
-    .replace(/\s+/g," ")
-    .trim();
-}
-
-function loadProgress() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-  } catch {
-    return {};
-  }
-}
-function saveProgress(p) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
-}
-
-function loadProfile() {
-  const fallback = {
-    xp: 0,
-    tone: "normal",
-    theme: "neon-core",
-    mode: "dark",
-    soundOn: false,
-    sound: "forest",
-    volume: 0.35,
-    unlockedThemes: ["neon-core"]
-  };
-  try {
-    const stored = JSON.parse(localStorage.getItem(PROFILE_KEY) || "null");
-    return { ...fallback, ...(stored || {}) };
-  } catch {
-    return fallback;
-  }
-}
-
-function saveProfile(p) {
-  localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
-}
-
-const THEMES = [
-  { id: "neon-core", label: "Neon Core", unlock: 1 },
-  { id: "aurora-drift", label: "Aurora Drift", unlock: 1 },
-  { id: "ember-glow", label: "Ember Glow", unlock: 1 },
-  { id: "brutal-ink", label: "Brutal Ink", unlock: 4 }
-];
-
-const SOUNDS = [
-  { id: "forest", label: "Waldrauschen", url: "https://cdn.pixabay.com/audio/2022/10/03/audio_8f68d5b7df.mp3" },
-  { id: "ocean", label: "Meeresbrise", url: "https://cdn.pixabay.com/audio/2021/08/04/audio_c3f7a1f4f1.mp3" },
-  { id: "ambient", label: "Sanftes Pad", url: "https://cdn.pixabay.com/audio/2022/03/10/audio_7b4f7b41d4.mp3" }
-];
-
-const TONES = {
-  normal: {
-    title: "Merkzahlen Trainer",
-    subtitle: "Karteikarten, Quiz, Punkte. Natürlich alles in deinem Kopf.",
-    setupHint: "Alles gemischt. Kein Ausweichen.",
-    playHints: {
-      cards: "Erst denken, dann gucken. Oder andersrum. Menschen halt.",
-      mc: "Vier Antworten, eine Wahrheit.",
-      type: "Tippen ist wie Denken, nur mit Tippgeräuschen."
-    },
-    endHint: (score, acc) => `Fertig. Score ${score}. Genauigkeit ${acc}. Dein Gehirn bekommt heute keinen Applaus, aber Respekt.`,
-    resetHint: "Reset gemacht. Dramatisch. Aber wir machen weiter.",
-    streakOn: "Streaks, die schmerzen: an. 💥",
-    streakOff: "Streaks, die schmerzen: aus.",
-    levelUp: "Upgrade freigeschaltet."
-  },
-  ironic: {
-    title: "Merkzahlen Trainer: Deluxe Chaos",
-    subtitle: "Alles durcheinander. Dein Kopf liebt doch Rätsel.",
-    setupHint: "Du wolltest’s gemischt. Du bekommst’s gemischt.",
-    playHints: {
-      cards: "Flüstere der Geschichte zu. Sie flüstert zurück.",
-      mc: "Vier Optionen, ein Drama.",
-      type: "Tipp, als würdest du die Zeit anstupsen."
-    },
-    endHint: (score, acc) => `Session vorbei. Score ${score}, Trefferquote ${acc}. Du bist offiziell ziemlich okay.`,
-    resetHint: "Reset gedrückt. Weil Kontrolle super ist.",
-    streakOn: "Streaks, die schmerzen: aktiviert. Hot.",
-    streakOff: "Streaks, die schmerzen: kaltgestellt.",
-    levelUp: "Neues Upgrade freigeschaltet. Glänzend."
-  },
-  brutal: {
-    title: "Merkzahlen Drill",
-    subtitle: "Ausreden raus, Fakten rein.",
-    setupHint: "Nichts gewählt, alles gelernt. Punkt.",
-    playHints: {
-      cards: "Erst denken, dann liefern.",
-      mc: "Eine Wahrheit. Drei Lügen. Entscheide.",
-      type: "Tippen. Kein Zaudern."
-    },
-    endHint: (score, acc) => `Fertig. Score ${score}. Genauigkeit ${acc}. Besser geht immer.`,
-    resetHint: "Reset. Fang neu an. Ohne Drama.",
-    streakOn: "Streaks, die schmerzen: läuft. Liefere.",
-    streakOff: "Streaks, die schmerzen: aus. Schwach.",
-    levelUp: "Upgrade da. Nimm’s."
-  }
-};
-
-function ensureCardState(p, cardId) {
-  if (!p[cardId]) {
-    p[cardId] = { box: 0, due: 0, seen: 0, correct: 0, wrong: 0 };
-  }
-  return p[cardId];
-}
-
-function computeStats(deckCards, p) {
-  let due = 0;
-  let mastered = 0;
-  const t = now();
-  for (const c of deckCards) {
-    const st = ensureCardState(p, c.id);
-    if (st.box >= 5) mastered++;
-    if (st.due <= t) due++;
-  }
-  return { due, mastered, total: deckCards.length };
-}
-
-function chooseCards(deckCards, p, difficulty, n) {
-  const t = now();
-  const arr = deckCards.slice();
-  const dueCards = arr.filter(c => ensureCardState(p,c.id).due <= t);
-  const newCards = arr.filter(c => ensureCardState(p,c.id).seen === 0);
-
-  let pick = [];
-  if (difficulty === "due") {
-    pick = dueCards;
-  } else if (difficulty === "new") {
-    // prioritize new, then due
-    pick = [...newCards, ...dueCards.filter(c => !newCards.includes(c))];
-  } else {
-    // mix: weighted towards due
-    pick = [...dueCards, ...arr.filter(c => !dueCards.includes(c))];
-  }
-
-  // De-duplicate (just in case)
-  const seenIds = new Set();
-  pick = pick.filter(c => (seenIds.has(c.id) ? false : (seenIds.add(c.id), true)));
-
-  // If too short, fallback to full deck
-  if (pick.length < n) pick = arr;
-
-  shuffle(pick);
-  return pick.slice(0, n);
-}
-
-function shuffle(a){
-  for (let i=a.length-1; i>0; i--){
-    const j = Math.floor(Math.random()*(i+1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-}
-
-function directionPair(card, dir){
-  if (dir === "event2year") {
-    return { q: card.answer, a: card.prompt };
-  }
-  return { q: card.prompt, a: card.answer };
-}
-
-function levelInfo(xp) {
-  const level = Math.floor(xp / XP_PER_LEVEL) + 1;
-  const nextXp = level * XP_PER_LEVEL;
-  const currentXp = xp - (level - 1) * XP_PER_LEVEL;
-  return { level, currentXp, nextXp, pct: Math.min(100, Math.round((currentXp / XP_PER_LEVEL) * 100)) };
-}
-
-function applyTone(tone) {
-  const copy = TONES[tone] || TONES.normal;
-  els.appTitle.textContent = copy.title;
-  els.appSubtitle.textContent = copy.subtitle;
-  els.toneTag.textContent = `Ton: ${tone === "normal" ? "normal" : tone === "ironic" ? "ironisch" : "brutal ehrlich"}`;
-  els.setupHint.textContent = copy.setupHint;
-  if (!session) {
-    els.playHint.textContent = copy.playHints.cards;
-  } else {
-    els.playHint.textContent = copy.playHints[session.mode];
-    els.streakStatus.textContent = session.streak >= 10 ? copy.streakOn : copy.streakOff;
-  }
-}
-
-function applyTheme(themeId, mode) {
-  document.body.dataset.theme = themeId;
-  document.body.dataset.mode = mode;
-}
-
-function renderThemeOptions() {
-  els.themeSelect.innerHTML = "";
-  THEMES.forEach(theme => {
-    const opt = document.createElement("option");
-    opt.value = theme.id;
-    opt.textContent = theme.label;
-    els.themeSelect.appendChild(opt);
-  });
-  const themeIds = THEMES.map(theme => theme.id);
-  if (!themeIds.includes(profile.theme)) {
-    profile.theme = THEMES[0].id;
-  }
-  els.themeSelect.value = profile.theme;
-}
-
-function updateLevelUI() {
-  const info = levelInfo(profile.xp);
-  els.qLevel.textContent = `Level: ${info.level}`;
-  els.qXp.textContent = `XP: ${info.currentXp}/${XP_PER_LEVEL}`;
-  els.levelLabel.textContent = String(info.level);
-  els.levelFill.style.width = `${info.pct}%`;
-  els.levelHint.textContent = `Noch ${info.nextXp - profile.xp} XP bis zum nächsten Upgrade.`;
-}
-
-function showLevelUp(message) {
-  els.levelUpText.textContent = message;
-  els.levelUpBanner.hidden = false;
-  setTimeout(() => {
-    els.levelUpBanner.hidden = true;
-  }, 2200);
-}
-
-function triggerEffect(effectClass) {
-  document.body.classList.remove("pulse", "shake");
-  void document.body.offsetWidth;
-  document.body.classList.add(effectClass);
-  setTimeout(() => document.body.classList.remove(effectClass), 600);
-}
-
-function setupConfetti() {
-  const canvas = els.confettiCanvas;
-  confettiCtx = canvas.getContext("2d");
-  const resize = () => {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-  };
-  resize();
-  window.addEventListener("resize", resize);
-}
-
-function fireConfetti() {
-  if (!confettiCtx) return;
-  const canvas = els.confettiCanvas;
-  const particles = Array.from({ length: 120 }).map(() => ({
-    x: canvas.width / 2,
-    y: canvas.height / 3,
-    vx: (Math.random() - 0.5) * 8,
-    vy: (Math.random() - 0.8) * 10,
-    size: Math.random() * 6 + 3,
-    color: `hsl(${Math.random() * 360}, 90%, 60%)`,
-    life: Math.random() * 40 + 40
-  }));
-
-  let frame = 0;
-  function tick() {
-    frame += 1;
-    confettiCtx.clearRect(0, 0, canvas.width, canvas.height);
-    particles.forEach(p => {
-      p.x += p.vx;
-      p.y += p.vy;
-      p.vy += 0.15;
-      p.life -= 1;
-      confettiCtx.fillStyle = p.color;
-      confettiCtx.fillRect(p.x, p.y, p.size, p.size);
-    });
-    if (frame < 90) requestAnimationFrame(tick);
-    else confettiCtx.clearRect(0, 0, canvas.width, canvas.height);
-  }
-  tick();
-}
-
-function updateSoundUI() {
-  els.soundToggle.textContent = profile.soundOn ? "Sound: An" : "Sound: Aus";
-  els.soundVolume.value = profile.volume;
-}
-
-function applySound() {
-  const selected = SOUNDS.find(s => s.id === profile.sound) || SOUNDS[0];
-  if (selected?.url && els.ambientAudio.src !== selected.url) {
-    els.ambientAudio.src = selected.url;
-  }
-  els.ambientAudio.volume = profile.volume;
-  if (profile.soundOn) {
-    els.ambientAudio.play().catch(() => {});
-  } else {
-    els.ambientAudio.pause();
-  }
-}
-
-function startSession(){
-  const mode = els.modeSelect.value;
-  const dir = els.dirSelect.value;
-  const diff = els.difficulty.value;
-  const n = Math.max(5, Math.min(100, Number(els.sessionSize.value || 20)));
-
-  const progress = loadProgress();
-  const chosen = chooseCards(ALL_CARDS, progress, diff, n);
-
-  session = {
-    deckName: "Alles",
-    mode,
-    dir,
-    cards: chosen,
-    idx: 0,
-    score: 0,
-    streak: 0,
-    correct: 0,
-    wrong: 0,
-    progress
+  const MODE_LABELS = {
+    mix: "Mix",
+    cards: "Karteikarten",
+    mc: "Multiple Choice",
+    type: "Tippen",
   };
 
-  els.playCard.hidden = false;
-  els.playTitle.textContent = "Session: Alles gemischt";
-  const copy = TONES[profile.tone] || TONES.normal;
-  els.playHint.textContent = copy.playHints[mode];
-
-  renderQuestion();
-  updateMiniStats();
-  updateSetupStats();
-  window.scrollTo({top: 0, behavior:"smooth"});
-}
-
-function endSession(){
-  // persist
-  saveProgress(session.progress);
-
-  const acc = session.correct + session.wrong > 0
-    ? Math.round((session.correct/(session.correct+session.wrong))*100) + "%"
-    : "–";
-
-  const copy = TONES[profile.tone] || TONES.normal;
-  els.playHint.textContent = copy.endHint(session.score, acc);
-  els.revealBtn.hidden = true;
-  els.goodBtn.hidden = true;
-  els.badBtn.hidden = true;
-  els.nextBtn.hidden = true;
-  els.mcArea.hidden = true;
-  els.typeArea.hidden = true;
-  els.answer.hidden = false;
-  els.answer.textContent = "Session beendet. Du kannst oben eine neue starten.";
-}
-
-function updateMiniStats(){
-  els.sCorrect.textContent = String(session.correct);
-  els.sWrong.textContent = String(session.wrong);
-  const total = session.correct + session.wrong;
-  els.sAcc.textContent = total ? (Math.round(session.correct/total*100) + "%") : "–";
-}
-
-function updateHeaderStats(){
-  els.qScore.textContent = `Score: ${session.score}`;
-  const streakLabel = session.streak >= 10 ? `Streak: ${session.streak} 🔥🔥🔥` : `Streak: ${session.streak}`;
-  els.qStreak.textContent = streakLabel;
-  els.qIndex.textContent = `${session.idx+1}/${session.cards.length}`;
-  updateLevelUI();
-}
-
-function showRevealButtons(){
-  els.revealBtn.hidden = false;
-  els.goodBtn.hidden = true;
-  els.badBtn.hidden = true;
-  els.nextBtn.hidden = true;
-}
-
-function showRatingButtons(){
-  els.revealBtn.hidden = true;
-  els.goodBtn.hidden = false;
-  els.badBtn.hidden = false;
-  els.nextBtn.hidden = true;
-}
-
-function showNextOnly(){
-  els.revealBtn.hidden = true;
-  els.goodBtn.hidden = true;
-  els.badBtn.hidden = true;
-  els.nextBtn.hidden = false;
-}
-
-function renderQuestion(){
-  if (!session) return;
-
-  if (session.idx >= session.cards.length){
-    endSession();
-    updateSetupStats();
-    return;
-  }
-
-  updateHeaderStats();
-
-  const card = session.cards[session.idx];
-  const pair = directionPair(card, session.dir);
-
-  els.question.textContent = pair.q;
-  els.answer.textContent = pair.a;
-  els.answer.hidden = true;
-  els.streakStatus.textContent = session.streak >= 10 ? (TONES[profile.tone] || TONES.normal).streakOn : (TONES[profile.tone] || TONES.normal).streakOff;
-
-  // reset mode areas
-  els.mcArea.innerHTML = "";
-  els.mcArea.hidden = true;
-  els.typeArea.hidden = true;
-  els.typeInput.value = "";
-
-  if (session.mode === "cards"){
-    showRevealButtons();
-  } else if (session.mode === "mc"){
-    renderMC(card, pair);
-  } else {
-    renderType(card, pair);
-  }
-
-  updateMiniStats();
-}
-
-function renderMC(card, pair){
-  els.mcArea.hidden = false;
-  showRevealButtons();
-
-  // Build options: correct + 3 random from deck
-  const deck = ALL_CARDS;
-  const options = [pair.a];
-
-  while (options.length < 4){
-    const pick = deck[Math.floor(Math.random()*deck.length)];
-    const other = directionPair(pick, session.dir).a;
-    if (!options.includes(other)) options.push(other);
-  }
-  shuffle(options);
-
-  for (const opt of options){
-    const b = document.createElement("button");
-    b.textContent = opt;
-    b.addEventListener("click", () => {
-      // reveal answer and mark
-      els.answer.hidden = false;
-
-      const correct = opt === pair.a;
-      if (correct) b.classList.add("correct");
-      else b.classList.add("wrong");
-
-      // mark correct option too
-      [...els.mcArea.querySelectorAll("button")].forEach(btn=>{
-        if (btn.textContent === pair.a) btn.classList.add("correct");
-        btn.disabled = true;
-      });
-
-      grade(card, correct);
-      showNextOnly();
-    });
-    els.mcArea.appendChild(b);
-  }
-
-  // reveal shows answer but no grading yet
-  els.revealBtn.onclick = () => {
-    els.answer.hidden = false;
-  };
-}
-
-function renderType(card, pair){
-  els.typeArea.hidden = false;
-  showRevealButtons();
-
-  els.revealBtn.onclick = () => {
-    els.answer.hidden = false;
+  const FOCUS_LABELS = {
+    mixed: "Gemischt priorisiert",
+    due: "Nur fällig",
+    new: "Nur neu",
+    weak: "Nur unsicher",
   };
 
-  function doCheck(){
-    const user = normalizeText(els.typeInput.value);
-    const truth = normalizeText(pair.a);
-    const correct = user.length > 0 && (user === truth || truth.includes(user) || user.includes(truth));
-    els.answer.hidden = false;
-    grade(card, correct);
-    showNextOnly();
+  function normalizeText(value) {
+    return String(value || "")
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[–—]/g, "-")
+      .replace(/[„“"]/g, "")
+      .replace(/[^\p{L}\p{N}\s./-]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
   }
 
-  els.checkBtn.onclick = doCheck;
-  els.typeInput.onkeydown = (e)=>{ if (e.key === "Enter") doCheck(); };
-}
-
-function grade(card, correct){
-  const p = session.progress;
-  const st = ensureCardState(p, card.id);
-  const beforeLevel = levelInfo(profile.xp).level;
-
-  st.seen += 1;
-
-  if (correct){
-    session.score += 10 + Math.min(10, session.streak*2);
-    session.streak += 1;
-    session.correct += 1;
-    st.correct += 1;
-
-    st.box = Math.min(6, st.box + 1);
-    profile.xp += 12;
-    if (session.streak >= 10) {
-      triggerEffect("pulse");
-      fireConfetti();
+  function loadJson(key, fallback) {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) || "null");
+      return parsed && typeof parsed === "object" ? { ...fallback, ...parsed } : { ...fallback };
+    } catch {
+      return { ...fallback };
     }
-  } else {
-    session.score = Math.max(0, session.score - 5);
-    session.streak = 0;
-    session.wrong += 1;
-    st.wrong += 1;
-
-    st.box = Math.max(0, st.box - 1);
-    triggerEffect("shake");
   }
 
-  // next due date based on box
-  const interval = INTERVALS[st.box] ?? (60*DAY);
-  st.due = now() + interval;
-
-  const afterLevel = levelInfo(profile.xp).level;
-  if (afterLevel > beforeLevel) {
-    renderThemeOptions();
-    showLevelUp((TONES[profile.tone] || TONES.normal).levelUp);
-    fireConfetti();
+  function loadProgress() {
+    return loadJson(STORAGE_KEY, {});
   }
 
-  saveProfile(profile);
-
-  updateHeaderStats();
-  updateMiniStats();
-  updateSetupStats();
-}
-
-function next(){
-  session.idx += 1;
-  renderQuestion();
-}
-
-function updateSetupStats(){
-  const deckCards = ALL_CARDS;
-  const p = loadProgress();
-  const st = computeStats(deckCards, p);
-  els.statDue.textContent = `Fällig: ${st.due}/${st.total}`;
-  els.statMastered.textContent = `Sicher: ${st.mastered}/${st.total}`;
-}
-
-function resetAll(){
-  localStorage.removeItem(STORAGE_KEY);
-  updateSetupStats();
-  if (session){
-    session.progress = loadProgress();
-    els.playHint.textContent = (TONES[profile.tone] || TONES.normal).resetHint;
-  }
-}
-
-async function boot(){
-  const res = await fetch("data.json");
-  DB = await res.json();
-  ALL_CARDS = Object.values(DB).flat();
-  profile = loadProfile();
-  const themeIds = THEMES.map(theme => theme.id);
-  if (!themeIds.includes(profile.theme)) {
-    profile.theme = THEMES[0].id;
-  }
-  if (!TONES[profile.tone]) {
-    profile.tone = "normal";
-  }
-  if (!["dark", "light"].includes(profile.mode)) {
-    profile.mode = "dark";
-  }
-  if (!SOUNDS.find(sound => sound.id === profile.sound)) {
-    profile.sound = SOUNDS[0].id;
+  function saveProgress(progress) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
   }
 
-  renderThemeOptions();
-  els.toneSelect.value = profile.tone;
-  els.modeSelectUi.value = profile.mode;
-  els.themeSelect.value = profile.theme;
+  function loadProfile() {
+    return loadJson(PROFILE_KEY, {
+      theme: "atelier-night",
+      selectedDecks: [],
+      lastSummary: null,
+    });
+  }
 
-  els.soundSelect.innerHTML = "";
-  SOUNDS.forEach(sound => {
-    const opt = document.createElement("option");
-    opt.value = sound.id;
-    opt.textContent = sound.label;
-    els.soundSelect.appendChild(opt);
-  });
-  els.soundSelect.value = profile.sound;
+  function saveProfile(profile) {
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  }
 
-  // Hook events
-  els.startBtn.addEventListener("click", startSession);
-  els.shuffleBtn.addEventListener("click", () => {
+  function ensureCardState(progress, cardId) {
+    if (!progress[cardId]) {
+      progress[cardId] = {
+        box: 0,
+        due: 0,
+        seen: 0,
+        correct: 0,
+        wrong: 0,
+        lastSeen: 0,
+        lastWrongAt: 0,
+      };
+    }
+    return progress[cardId];
+  }
+
+  function flattenDecks(db) {
+    return Object.entries(db).flatMap(([deck, cards]) =>
+      cards.map((card) => ({
+        ...card,
+        deck,
+      })),
+    );
+  }
+
+  function getCardMeta(card, progress, timestamp = Date.now()) {
+    const state = ensureCardState(progress, card.id);
+    return {
+      due: state.due <= timestamp,
+      isNew: state.seen === 0,
+      isWeak: state.wrong > state.correct || (state.wrong > 0 && timestamp - state.lastWrongAt < 14 * DAY),
+      mastered: state.box >= 5,
+      state,
+    };
+  }
+
+  function computeOverview(cards, progress, selectedDecks, timestamp = Date.now()) {
+    const active = filterCardsByDeck(cards, selectedDecks);
+    const stats = {
+      total: active.length,
+      due: 0,
+      newCount: 0,
+      weak: 0,
+      mastered: 0,
+      accuracy: null,
+    };
+
+    let correct = 0;
+    let attempts = 0;
+
+    active.forEach((card) => {
+      const meta = getCardMeta(card, progress, timestamp);
+      if (meta.due) stats.due += 1;
+      if (meta.isNew) stats.newCount += 1;
+      if (meta.isWeak) stats.weak += 1;
+      if (meta.mastered) stats.mastered += 1;
+      correct += meta.state.correct;
+      attempts += meta.state.correct + meta.state.wrong;
+    });
+
+    if (attempts > 0) {
+      stats.accuracy = Math.round((correct / attempts) * 100);
+    }
+
+    return stats;
+  }
+
+  function filterCardsByDeck(cards, selectedDecks) {
+    if (!selectedDecks || selectedDecks.length === 0) return cards.slice();
+    const allowed = new Set(selectedDecks);
+    return cards.filter((card) => allowed.has(card.deck));
+  }
+
+  function chooseCards(cards, progress, options, timestamp = Date.now()) {
+    const { focus = "mixed", count = 16, selectedDecks = [] } = options;
+    const active = filterCardsByDeck(cards, selectedDecks);
+    const scored = active.map((card) => {
+      const meta = getCardMeta(card, progress, timestamp);
+      let weight = 1;
+      if (meta.due) weight += 6;
+      if (meta.isWeak) weight += 5;
+      if (meta.isNew) weight += 4;
+      weight += Math.max(0, meta.state.wrong - meta.state.correct);
+      return {
+        card,
+        meta,
+        weight,
+      };
+    });
+
+    let filtered = scored;
+    if (focus === "due") filtered = scored.filter((entry) => entry.meta.due);
+    if (focus === "new") filtered = scored.filter((entry) => entry.meta.isNew);
+    if (focus === "weak") filtered = scored.filter((entry) => entry.meta.isWeak);
+    if (filtered.length === 0) filtered = scored;
+
+    const ordered = filtered
+      .slice()
+      .sort((a, b) => {
+        if (b.weight !== a.weight) return b.weight - a.weight;
+        return a.meta.state.due - b.meta.state.due;
+      })
+      .map((entry) => entry.card);
+
+    return ordered.slice(0, Math.min(count, ordered.length));
+  }
+
+  function directionPair(card, direction) {
+    if (direction === "event2year") {
+      return { question: card.answer, answer: card.prompt };
+    }
+    return { question: card.prompt, answer: card.answer };
+  }
+
+  function sessionModeForIndex(mode, index) {
+    if (mode !== "mix") return mode;
+    return ["cards", "mc", "type"][index % 3];
+  }
+
+  function buildMcOptions(cards, currentCard, direction) {
+    const correct = directionPair(currentCard, direction).answer;
+    const options = [correct];
+    const candidates = cards
+      .filter((card) => card.id !== currentCard.id)
+      .map((card) => directionPair(card, direction).answer)
+      .filter((answer, index, arr) => arr.indexOf(answer) === index);
+
+    for (let i = 0; i < candidates.length && options.length < 4; i += 1) {
+      const candidate = candidates[i];
+      if (!options.includes(candidate)) options.push(candidate);
+    }
+
+    while (options.length < Math.min(4, cards.length)) {
+      options.push(correct);
+    }
+
+    return shuffle(options).slice(0, Math.min(4, options.length));
+  }
+
+  function shuffle(items) {
+    const copy = items.slice();
+    for (let i = copy.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  }
+
+  function evaluateTypedAnswer(input, truth) {
+    const normalizedInput = normalizeText(input);
+    const normalizedTruth = normalizeText(truth);
+    if (!normalizedInput || !normalizedTruth) return false;
+    if (normalizedInput === normalizedTruth) return true;
+    if (normalizedInput.length >= 4 && normalizedTruth.includes(normalizedInput)) return true;
+    if (normalizedTruth.length >= 4 && normalizedInput.includes(normalizedTruth)) return true;
+
+    const truthParts = normalizedTruth.split(" ");
+    const inputParts = normalizedInput.split(" ");
+    const overlap = inputParts.filter((part) => truthParts.includes(part));
+    return overlap.length >= Math.max(2, Math.ceil(truthParts.length / 2));
+  }
+
+  function applyGrade(progress, card, correct, timestamp = Date.now()) {
+    const state = ensureCardState(progress, card.id);
+    state.seen += 1;
+    state.lastSeen = timestamp;
+
+    if (correct) {
+      state.correct += 1;
+      state.box = Math.min(6, state.box + 1);
+    } else {
+      state.wrong += 1;
+      state.lastWrongAt = timestamp;
+      state.box = Math.max(0, state.box - 1);
+    }
+
+    state.due = timestamp + (INTERVALS[state.box] || 60 * DAY);
+    return state;
+  }
+
+  function buildSummary(session) {
+    const total = session.correct + session.wrong;
+    const accuracy = total ? Math.round((session.correct / total) * 100) : 0;
+    const recommendation =
+      accuracy >= 85
+        ? "Sehr stabil. Nächstes Mal fällige Karten oder die Gegenrichtung trainieren."
+        : accuracy >= 60
+          ? "Ordentlich, aber nicht fest. Wiederhole vor allem die markierten Schwachstellen."
+          : "Noch wacklig. Kürzere Session, Fokus auf unsicher und Tippen lohnt sich.";
+
+    const weakCards = session.answered
+      .filter((item) => !item.correct)
+      .slice(-5)
+      .map((item) => `${item.card.prompt} – ${item.card.answer}`);
+
+    return {
+      accuracy,
+      bestStreak: session.bestStreak,
+      total,
+      recommendation,
+      weakCards,
+    };
+  }
+
+  return {
+    MODE_LABELS,
+    FOCUS_LABELS,
+    STORAGE_KEY,
+    PROFILE_KEY,
+    normalizeText,
+    loadProgress,
+    saveProgress,
+    loadProfile,
+    saveProfile,
+    ensureCardState,
+    flattenDecks,
+    getCardMeta,
+    computeOverview,
+    filterCardsByDeck,
+    chooseCards,
+    directionPair,
+    sessionModeForIndex,
+    buildMcOptions,
+    shuffle,
+    evaluateTypedAnswer,
+    applyGrade,
+    buildSummary,
+  };
+})();
+
+if (!window.__MERKZAHLEN_TEST__) {
+  const $ = (selector) => document.querySelector(selector);
+  const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+
+  const els = {
+    startBtn: $("#startBtn"),
+    installBtn: $("#installBtn"),
+    modeSelect: $("#modeSelect"),
+    dirSelect: $("#dirSelect"),
+    focusSelect: $("#focusSelect"),
+    sessionSize: $("#sessionSize"),
+    themeSwitch: $("#themeSwitch"),
+    deckFilter: $("#deckFilter"),
+    toggleAllDecksBtn: $("#toggleAllDecksBtn"),
+    resetBtn: $("#resetBtn"),
+    sessionHint: $("#sessionHint"),
+    deckSummary: $("#deckSummary"),
+    heroDue: $("#heroDue"),
+    heroFocus: $("#heroFocus"),
+    statMastered: $("#statMastered"),
+    statWeak: $("#statWeak"),
+    statAccuracy: $("#statAccuracy"),
+    statDecks: $("#statDecks"),
+    quickDue: $("#quickDue"),
+    quickNew: $("#quickNew"),
+    quickWeak: $("#quickWeak"),
+    playCard: $("#playCard"),
+    playTitle: $("#playTitle"),
+    qIndex: $("#qIndex"),
+    qModeLabel: $("#qModeLabel"),
+    qStreak: $("#qStreak"),
+    qScore: $("#qScore"),
+    questionContext: $("#questionContext"),
+    question: $("#question"),
+    answer: $("#answer"),
+    mcArea: $("#mcArea"),
+    typeArea: $("#typeArea"),
+    typeInput: $("#typeInput"),
+    checkBtn: $("#checkBtn"),
+    revealBtn: $("#revealBtn"),
+    goodBtn: $("#goodBtn"),
+    badBtn: $("#badBtn"),
+    nextBtn: $("#nextBtn"),
+    sCorrect: $("#sCorrect"),
+    sWrong: $("#sWrong"),
+    sAcc: $("#sAcc"),
+    playHint: $("#playHint"),
+    summaryEmpty: $("#summaryEmpty"),
+    summaryContent: $("#summaryContent"),
+    summaryAccuracy: $("#summaryAccuracy"),
+    summaryBestStreak: $("#summaryBestStreak"),
+    summaryTotal: $("#summaryTotal"),
+    summaryRecommendation: $("#summaryRecommendation"),
+    summaryWeakList: $("#summaryWeakList"),
+  };
+
+  const state = {
+    db: null,
+    cards: [],
+    progress: AppCore.loadProgress(),
+    profile: AppCore.loadProfile(),
+    session: null,
+    installPrompt: null,
+  };
+
+  function updateThemeButtons() {
+    $$("#themeSwitch button").forEach((button) => {
+      button.classList.toggle("isActive", button.dataset.theme === state.profile.theme);
+    });
+    document.body.dataset.theme = state.profile.theme;
+  }
+
+  function createDeckFilter() {
+    const decks = [...new Set(state.cards.map((card) => card.deck))];
+    if (!Array.isArray(state.profile.selectedDecks) || state.profile.selectedDecks.length === 0) {
+      state.profile.selectedDecks = decks.slice();
+    } else {
+      state.profile.selectedDecks = state.profile.selectedDecks.filter((deck) => decks.includes(deck));
+      if (state.profile.selectedDecks.length === 0) state.profile.selectedDecks = decks.slice();
+    }
+
+    els.deckFilter.innerHTML = "";
+    decks.forEach((deck) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "deckChip";
+      button.textContent = deck;
+      button.dataset.deck = deck;
+      button.addEventListener("click", () => toggleDeck(deck));
+      els.deckFilter.appendChild(button);
+    });
+
+    updateDeckFilterUi();
+  }
+
+  function toggleDeck(deck) {
+    const selected = new Set(state.profile.selectedDecks);
+    if (selected.has(deck) && selected.size > 1) {
+      selected.delete(deck);
+    } else if (!selected.has(deck)) {
+      selected.add(deck);
+    }
+    state.profile.selectedDecks = [...selected];
+    AppCore.saveProfile(state.profile);
+    updateDeckFilterUi();
+    updateDashboard();
+  }
+
+  function toggleAllDecks() {
+    const decks = [...new Set(state.cards.map((card) => card.deck))];
+    const allActive = state.profile.selectedDecks.length === decks.length;
+    state.profile.selectedDecks = allActive ? [decks[0]] : decks.slice();
+    AppCore.saveProfile(state.profile);
+    updateDeckFilterUi();
+    updateDashboard();
+  }
+
+  function updateDeckFilterUi() {
+    const selected = new Set(state.profile.selectedDecks);
+    $$("#deckFilter .deckChip").forEach((button) => {
+      button.classList.toggle("isActive", selected.has(button.dataset.deck));
+    });
+    els.deckSummary.textContent =
+      selected.size === state.cards.reduce((set, card) => set.add(card.deck), new Set()).size
+        ? "Alle Klassen aktiv."
+        : `${selected.size} Klassen aktiv: ${state.profile.selectedDecks.join(", ")}`;
+    els.statDecks.textContent = String(selected.size);
+  }
+
+  function updateDashboard() {
+    const overview = AppCore.computeOverview(state.cards, state.progress, state.profile.selectedDecks);
+    els.heroDue.textContent = `${overview.due} Karten fällig`;
+    els.heroFocus.textContent = `Fokus: ${AppCore.FOCUS_LABELS[els.focusSelect.value]}. ${overview.newCount} neue und ${overview.weak} unsichere Karten im aktiven Bereich.`;
+    els.statMastered.textContent = String(overview.mastered);
+    els.statWeak.textContent = String(overview.weak);
+    els.statAccuracy.textContent = overview.accuracy == null ? "-" : `${overview.accuracy}%`;
+    els.quickDue.textContent = String(overview.due);
+    els.quickNew.textContent = String(overview.newCount);
+    els.quickWeak.textContent = String(overview.weak);
+    els.sessionHint.textContent = `Modus ${AppCore.MODE_LABELS[els.modeSelect.value]} · ${AppCore.FOCUS_LABELS[els.focusSelect.value]}`;
+  }
+
+  function updateMiniStats() {
+    if (!state.session) return;
+    const total = state.session.correct + state.session.wrong;
+    els.qScore.textContent = String(state.session.score);
+    els.sCorrect.textContent = String(state.session.correct);
+    els.sWrong.textContent = String(state.session.wrong);
+    els.sAcc.textContent = total ? `${Math.round((state.session.correct / total) * 100)}%` : "-";
+    els.qStreak.textContent = `Serie ${state.session.streak}`;
+  }
+
+  function showButtons(mode) {
+    els.revealBtn.hidden = mode !== "reveal";
+    els.goodBtn.hidden = mode !== "rate";
+    els.badBtn.hidden = mode !== "rate";
+    els.nextBtn.hidden = mode !== "next";
+  }
+
+  function renderCurrentQuestion() {
+    const session = state.session;
     if (!session) return;
-    shuffle(session.cards);
-    session.idx = 0;
-    session.score = 0;
-    session.streak = 0;
-    session.correct = 0;
-    session.wrong = 0;
-    renderQuestion();
-  });
-  els.resetBtn.addEventListener("click", resetAll);
 
-  els.modeSelect.addEventListener("change", () => {
-    if (session) {
-      session.mode = els.modeSelect.value;
-      renderQuestion();
-    }
-  });
-  els.themeSelect.addEventListener("change", () => {
-    const choice = els.themeSelect.value;
-    const allowed = !els.themeSelect.selectedOptions[0].disabled;
-    if (!allowed) {
-      els.themeSelect.value = profile.theme;
+    if (session.index >= session.cards.length) {
+      finishSession();
       return;
     }
-    profile.theme = choice;
-    applyTheme(profile.theme, profile.mode);
-    saveProfile(profile);
-  });
-  els.toneSelect.addEventListener("change", () => {
-    profile.tone = els.toneSelect.value;
-    applyTone(profile.tone);
-    saveProfile(profile);
-  });
-  els.modeSelectUi.addEventListener("change", () => {
-    profile.mode = els.modeSelectUi.value;
-    applyTheme(profile.theme, profile.mode);
-    saveProfile(profile);
-  });
-  els.soundSelect.addEventListener("change", () => {
-    profile.sound = els.soundSelect.value;
-    applySound();
-    saveProfile(profile);
-  });
-  els.soundToggle.addEventListener("click", () => {
-    profile.soundOn = !profile.soundOn;
-    updateSoundUI();
-    applySound();
-    saveProfile(profile);
-  });
-  els.soundVolume.addEventListener("input", () => {
-    profile.volume = Number(els.soundVolume.value);
-    applySound();
-    saveProfile(profile);
-  });
 
-  els.revealBtn.addEventListener("click", () => {
-    if (!session) return;
+    const card = session.cards[session.index];
+    const pair = AppCore.directionPair(card, session.direction);
+    const currentMode = AppCore.sessionModeForIndex(session.mode, session.index);
+    const meta = AppCore.getCardMeta(card, state.progress);
+
+    session.currentMode = currentMode;
+    els.playCard.hidden = false;
+    els.playTitle.textContent = `Trainingsrunde · ${session.cards.length} Karten`;
+    els.qIndex.textContent = `${session.index + 1}/${session.cards.length}`;
+    els.qModeLabel.textContent = AppCore.MODE_LABELS[currentMode];
+    els.questionContext.textContent = `${card.deck} · ${meta.isNew ? "Neu" : meta.isWeak ? "Unsicher" : meta.due ? "Fällig" : "Wiederholung"}`;
+    els.question.textContent = pair.question;
+    els.answer.textContent = pair.answer;
+    els.answer.hidden = true;
+    els.playHint.textContent = currentMode === "type"
+      ? "Tippen ist am strengsten. Nutze es für wirklich wacklige Karten."
+      : currentMode === "mc"
+        ? "Multiple Choice ist gut zum Einsortieren, aber weniger streng als Tippen."
+        : "Karteikarten sind schnell und ehrlich, wenn du vor dem Aufdecken wirklich stoppst.";
+
+    els.mcArea.hidden = true;
+    els.mcArea.innerHTML = "";
+    els.typeArea.hidden = true;
+    els.typeInput.value = "";
+    showButtons("reveal");
+    updateMiniStats();
+
+    if (currentMode === "mc") {
+      renderMc(card, pair);
+    }
+
+    if (currentMode === "type") {
+      renderType(card, pair);
+    }
+  }
+
+  function renderMc(card, pair) {
+    els.mcArea.hidden = false;
+    const options = AppCore.buildMcOptions(state.cards, card, state.session.direction);
+    options.forEach((option) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "optionButton";
+      button.textContent = option;
+      button.addEventListener("click", () => {
+        const correct = option === pair.answer;
+        [...els.mcArea.querySelectorAll("button")].forEach((node) => {
+          node.disabled = true;
+          if (node.textContent === pair.answer) node.classList.add("isCorrect");
+        });
+        if (!correct) button.classList.add("isWrong");
+        els.answer.hidden = false;
+        gradeCurrentCard(correct);
+      });
+      els.mcArea.appendChild(button);
+    });
+  }
+
+  function renderType(card, pair) {
+    els.typeArea.hidden = false;
+    const check = () => {
+      const correct = AppCore.evaluateTypedAnswer(els.typeInput.value, pair.answer);
+      els.answer.hidden = false;
+      gradeCurrentCard(correct);
+    };
+    els.checkBtn.onclick = check;
+    els.typeInput.onkeydown = (event) => {
+      if (event.key === "Enter") check();
+    };
+  }
+
+  function gradeCurrentCard(correct) {
+    const session = state.session;
+    if (!session || session.graded) return;
+
+    const card = session.cards[session.index];
+    AppCore.applyGrade(state.progress, card, correct);
+    session.graded = true;
+    session.answered.push({ card, correct });
+
+    if (correct) {
+      session.correct += 1;
+      session.streak += 1;
+      session.bestStreak = Math.max(session.bestStreak, session.streak);
+      session.score += 12 + Math.min(session.streak, 5);
+    } else {
+      session.wrong += 1;
+      session.streak = 0;
+      session.score = Math.max(0, session.score - 4);
+    }
+
+    AppCore.saveProgress(state.progress);
+    updateMiniStats();
+    updateDashboard();
+    showButtons("next");
+  }
+
+  function nextQuestion() {
+    if (!state.session) return;
+    state.session.index += 1;
+    state.session.graded = false;
+    renderCurrentQuestion();
+  }
+
+  function startSession() {
+    const cards = AppCore.chooseCards(state.cards, state.progress, {
+      focus: els.focusSelect.value,
+      count: Number(els.sessionSize.value || 16),
+      selectedDecks: state.profile.selectedDecks,
+    });
+
+    state.session = {
+      mode: els.modeSelect.value,
+      direction: els.dirSelect.value,
+      cards,
+      index: 0,
+      graded: false,
+      correct: 0,
+      wrong: 0,
+      score: 0,
+      streak: 0,
+      bestStreak: 0,
+      answered: [],
+    };
+
+    renderCurrentQuestion();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function finishSession() {
+    const summary = AppCore.buildSummary(state.session);
+    state.profile.lastSummary = summary;
+    AppCore.saveProfile(state.profile);
+
+    els.summaryEmpty.hidden = true;
+    els.summaryContent.hidden = false;
+    els.summaryAccuracy.textContent = `${summary.accuracy}%`;
+    els.summaryBestStreak.textContent = String(summary.bestStreak);
+    els.summaryTotal.textContent = String(summary.total);
+    els.summaryRecommendation.textContent = summary.recommendation;
+    els.summaryWeakList.innerHTML = "";
+
+    if (summary.weakCards.length === 0) {
+      const item = document.createElement("li");
+      item.textContent = "Keine frischen Fehlkarten. Nächster sinnvoller Schritt: Richtung wechseln oder Fokus auf fällig setzen.";
+      els.summaryWeakList.appendChild(item);
+    } else {
+      summary.weakCards.forEach((entry) => {
+        const item = document.createElement("li");
+        item.textContent = entry;
+        els.summaryWeakList.appendChild(item);
+      });
+    }
+
+    els.playHint.textContent = "Session beendet. Unten siehst du direkt, was als Nächstes sinnvoll ist.";
+    showButtons("next");
+    els.nextBtn.hidden = true;
+    updateDashboard();
+  }
+
+  function revealAnswer() {
     els.answer.hidden = false;
-    if (session.mode === "cards") showRatingButtons();
-  });
-  els.goodBtn.addEventListener("click", () => {
-    if (!session) return;
-    const card = session.cards[session.idx];
-    grade(card, true);
-    showNextOnly();
-  });
-  els.badBtn.addEventListener("click", () => {
-    if (!session) return;
-    const card = session.cards[session.idx];
-    grade(card, false);
-    showNextOnly();
-  });
-  els.nextBtn.addEventListener("click", next);
+    const mode = state.session?.currentMode || "cards";
+    if (mode === "cards") {
+      showButtons("rate");
+    }
+  }
 
-  applyTheme(profile.theme, profile.mode);
-  applyTone(profile.tone);
-  updateSoundUI();
-  applySound();
-  setupConfetti();
-  updateSetupStats();
-  updateLevelUI();
-  registerSW();
-  setupInstallUX();
+  function resetProgress() {
+    localStorage.removeItem(AppCore.STORAGE_KEY);
+    state.progress = AppCore.loadProgress();
+    state.profile.lastSummary = null;
+    AppCore.saveProfile(state.profile);
+    updateDashboard();
+    els.summaryEmpty.hidden = false;
+    els.summaryContent.hidden = true;
+  }
+
+  function restoreLastSummary() {
+    const summary = state.profile.lastSummary;
+    if (!summary) return;
+    els.summaryEmpty.hidden = true;
+    els.summaryContent.hidden = false;
+    els.summaryAccuracy.textContent = `${summary.accuracy}%`;
+    els.summaryBestStreak.textContent = String(summary.bestStreak);
+    els.summaryTotal.textContent = String(summary.total);
+    els.summaryRecommendation.textContent = summary.recommendation;
+    els.summaryWeakList.innerHTML = "";
+    const entries = summary.weakCards.length
+      ? summary.weakCards
+      : ["Keine frischen Fehlkarten. Nächster sinnvoller Schritt: Richtung wechseln oder Fokus auf fällig setzen."];
+    entries.forEach((entry) => {
+      const item = document.createElement("li");
+      item.textContent = entry;
+      els.summaryWeakList.appendChild(item);
+    });
+  }
+
+  function bindEvents() {
+    els.startBtn.addEventListener("click", startSession);
+    els.toggleAllDecksBtn.addEventListener("click", toggleAllDecks);
+    els.resetBtn.addEventListener("click", resetProgress);
+    els.modeSelect.addEventListener("change", updateDashboard);
+    els.focusSelect.addEventListener("change", updateDashboard);
+    els.dirSelect.addEventListener("change", updateDashboard);
+    els.revealBtn.addEventListener("click", revealAnswer);
+    els.goodBtn.addEventListener("click", () => gradeCurrentCard(true));
+    els.badBtn.addEventListener("click", () => gradeCurrentCard(false));
+    els.nextBtn.addEventListener("click", nextQuestion);
+    $$("#themeSwitch button").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.profile.theme = button.dataset.theme;
+        AppCore.saveProfile(state.profile);
+        updateThemeButtons();
+      });
+    });
+
+    window.addEventListener("beforeinstallprompt", (event) => {
+      event.preventDefault();
+      state.installPrompt = event;
+      els.installBtn.hidden = false;
+    });
+
+    els.installBtn.addEventListener("click", async () => {
+      if (!state.installPrompt) return;
+      state.installPrompt.prompt();
+      try {
+        await state.installPrompt.userChoice;
+      } catch {}
+      state.installPrompt = null;
+      els.installBtn.hidden = true;
+    });
+  }
+
+  async function registerServiceWorker() {
+    if (!("serviceWorker" in navigator)) return;
+    try {
+      await navigator.serviceWorker.register("service-worker.js");
+    } catch {}
+  }
+
+  async function boot() {
+    const response = await fetch("data.json");
+    state.db = await response.json();
+    state.cards = AppCore.flattenDecks(state.db);
+    bindEvents();
+    updateThemeButtons();
+    createDeckFilter();
+    updateDashboard();
+    restoreLastSummary();
+    registerServiceWorker();
+  }
+
+  boot();
 }
 
-function registerSW(){
-  if (!("serviceWorker" in navigator)) return;
-  window.addEventListener("load", async () => {
-    try { await navigator.serviceWorker.register("service-worker.js"); }
-    catch {}
-  });
-}
-
-// Install prompt handling (Chrome/Edge/Android)
-function setupInstallUX(){
-  window.addEventListener("beforeinstallprompt", (e) => {
-    e.preventDefault();
-    installPrompt = e;
-    els.installBtn.hidden = false;
-  });
-
-  els.installBtn.addEventListener("click", async () => {
-    if (!installPrompt) return;
-    installPrompt.prompt();
-    try { await installPrompt.userChoice; } catch {}
-    installPrompt = null;
-    els.installBtn.hidden = true;
-  });
-}
-
-boot();
+window.AppCore = AppCore;

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Merkzahlen Atelier Tests</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: Consolas, monospace;
+      background: #10131a;
+      color: #eaf0f8;
+    }
+    .pass { color: #89d49a; }
+    .fail { color: #ff8e88; }
+  </style>
+  <script>window.__MERKZAHLEN_TEST__ = true;</script>
+  <script src="app.js"></script>
+</head>
+<body>
+  <h1>Merkzahlen Atelier Testlauf</h1>
+  <div id="results"></div>
+  <script>
+    const results = document.getElementById("results");
+    const lines = [];
+
+    function assert(name, condition) {
+      lines.push(`<div class="${condition ? "pass" : "fail"}">${condition ? "PASS" : "FAIL"} - ${name}</div>`);
+      if (!condition) {
+        window.__MERKZAHLEN_FAILED__ = true;
+      }
+    }
+
+    const sampleCards = [
+      { id: "a", prompt: "1492", answer: "Kolumbus", deck: "Klasse 7" },
+      { id: "b", prompt: "1914", answer: "Erster Weltkrieg", deck: "Klasse 9" },
+      { id: "c", prompt: "1989", answer: "Mauerfall", deck: "Klasse 10" },
+      { id: "d", prompt: "1834", answer: "Zollverein", deck: "Klasse 8" }
+    ];
+
+    const progress = {
+      a: { box: 0, due: 0, seen: 0, correct: 0, wrong: 0, lastSeen: 0, lastWrongAt: 0 },
+      b: { box: 2, due: Date.now() - 1000, seen: 4, correct: 2, wrong: 3, lastSeen: Date.now(), lastWrongAt: Date.now() },
+      c: { box: 5, due: Date.now() + 1000, seen: 8, correct: 8, wrong: 0, lastSeen: Date.now(), lastWrongAt: 0 },
+      d: { box: 1, due: Date.now() - 1000, seen: 2, correct: 1, wrong: 1, lastSeen: Date.now(), lastWrongAt: Date.now() - 1000 }
+    };
+
+    assert("normalizeText entfernt Sonderzeichen konsistent", AppCore.normalizeText("Französische Revolution!") === "franzosische revolution");
+    assert("evaluateTypedAnswer akzeptiert Teiltreffer sinnvoll", AppCore.evaluateTypedAnswer("Franzosische Revolution", "Französische Revolution"));
+    assert("filterCardsByDeck filtert aktive Klassen", AppCore.filterCardsByDeck(sampleCards, ["Klasse 7", "Klasse 10"]).length === 2);
+    assert("computeOverview zaehlt fällige Karten", AppCore.computeOverview(sampleCards, progress, ["Klasse 7", "Klasse 8", "Klasse 9", "Klasse 10"]).due === 3);
+    assert("chooseCards priorisiert unsichere Karten", AppCore.chooseCards(sampleCards, progress, { focus: "weak", count: 2, selectedDecks: ["Klasse 7", "Klasse 8", "Klasse 9", "Klasse 10"] }).some((card) => card.id === "b"));
+    assert("buildMcOptions erzeugt bis zu vier Optionen", AppCore.buildMcOptions(sampleCards, sampleCards[0], "year2event").length === 4);
+
+    const graded = {};
+    AppCore.applyGrade(graded, sampleCards[0], false, 1000);
+    assert("applyGrade erfasst Fehler", graded.a.wrong === 1 && graded.a.box === 0);
+    AppCore.applyGrade(graded, sampleCards[0], true, 2000);
+    assert("applyGrade erhoeht Box bei richtiger Antwort", graded.a.correct === 1 && graded.a.box === 1);
+
+    const summary = AppCore.buildSummary({
+      correct: 3,
+      wrong: 1,
+      bestStreak: 2,
+      answered: [
+        { card: sampleCards[0], correct: true },
+        { card: sampleCards[1], correct: false }
+      ]
+    });
+    assert("buildSummary liefert Trefferquote", summary.accuracy === 75);
+    assert("buildSummary sammelt Fehlkarten", summary.weakCards.length === 1);
+
+    results.innerHTML = lines.join("");
+    document.title = window.__MERKZAHLEN_FAILED__ ? "Tests fehlgeschlagen" : "Tests erfolgreich";
+    document.body.insertAdjacentHTML("beforeend", `<p>${window.__MERKZAHLEN_FAILED__ ? "Mindestens ein Test ist fehlgeschlagen." : "Alle Tests erfolgreich."}</p>`);
+  </script>
+</body>
+</html>

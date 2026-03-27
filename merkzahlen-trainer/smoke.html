@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Merkzahlen Atelier Smoke Test</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: Consolas, monospace;
+      background: #10131a;
+      color: #eaf0f8;
+    }
+    .pass { color: #89d49a; }
+    .fail { color: #ff8e88; }
+    iframe {
+      width: 1200px;
+      max-width: 100%;
+      height: 900px;
+      border: 1px solid #2b3440;
+      margin-top: 16px;
+      background: white;
+    }
+  </style>
+</head>
+<body>
+  <h1>Merkzahlen Atelier Smoke Test</h1>
+  <div id="status">Läuft...</div>
+  <iframe id="appFrame" src="index.html"></iframe>
+  <script>
+    const frame = document.getElementById("appFrame");
+    const status = document.getElementById("status");
+
+    function done(ok, message) {
+      status.className = ok ? "pass" : "fail";
+      status.textContent = `${ok ? "PASS" : "FAIL"} - ${message}`;
+      document.title = ok ? "Smoke erfolgreich" : "Smoke fehlgeschlagen";
+      window.__MERKZAHLEN_SMOKE_FAILED__ = !ok;
+    }
+
+    frame.addEventListener("load", () => {
+      setTimeout(() => {
+        try {
+          const doc = frame.contentDocument;
+          const win = frame.contentWindow;
+          const start = doc.getElementById("startBtn");
+          const playCard = doc.getElementById("playCard");
+          start.click();
+
+          setTimeout(() => {
+            const question = doc.getElementById("question").textContent.trim();
+            const visible = !playCard.hidden && question && question !== "-";
+            const summaryExists = !!doc.getElementById("summaryCard");
+            const hasDeckChips = doc.querySelectorAll("#deckFilter .deckChip").length >= 4;
+            done(visible && summaryExists && hasDeckChips && !!win.AppCore, "App startet Session und rendert Kernbereiche.");
+          }, 700);
+        } catch (error) {
+          done(false, `Fehler beim Smoke-Test: ${error.message}`);
+        }
+      }, 1200);
+    });
+  </script>
+</body>
+</html>

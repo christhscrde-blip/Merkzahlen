@@ -3,201 +3,256 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#0b0f14" />
-  <title>Merkzahlen Trainer</title>
+  <meta name="theme-color" content="#13111c" />
+  <title>Merkzahlen Atelier</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <div class="logo" aria-hidden="true">🧠</div>
-      <div>
-        <div class="title" id="appTitle">Merkzahlen Trainer</div>
-        <div class="subtitle" id="appSubtitle">Karteikarten, Quiz, Punkte. Natürlich alles in deinem Kopf.</div>
-        <div class="toneTag" id="toneTag">Ton: normal</div>
-      </div>
-    </div>
-    <div class="topActions">
-      <button id="installBtn" class="btn ghost" hidden>Installieren</button>
-    </div>
-  </header>
-
-  <main class="wrap">
-    <section class="card">
-      <div class="card-h">
-        <h2>Setup</h2>
-        <div class="hint" id="setupHint">Alles gemischt. Kein Ausweichen.</div>
-      </div>
-
-      <div class="grid">
-        <label class="field">
-          <span>Modus</span>
-          <select id="modeSelect">
-            <option value="cards">Karteikarten</option>
-            <option value="mc">Multiple Choice</option>
-            <option value="type">Tippen</option>
-          </select>
-        </label>
-
-        <label class="field">
-          <span>Richtung</span>
-          <select id="dirSelect">
-            <option value="year2event">Merkzahl → Ereignis</option>
-            <option value="event2year">Ereignis → Merkzahl</option>
-          </select>
-        </label>
-
-        <label class="field">
-          <span>Schwierigkeit</span>
-          <select id="difficulty">
-            <option value="mix">Gemischt</option>
-            <option value="new">Nur neu/unsicher</option>
-            <option value="due">Fällig (Spaced)</option>
-          </select>
-        </label>
-
-        <label class="field">
-          <span>Fragen pro Session</span>
-          <input id="sessionSize" type="number" min="5" max="100" value="20" />
-        </label>
-
-        <div class="field">
-          <span>Fortschritt</span>
-          <div class="statline">
-            <div class="pill" id="statDue">Fällig: –</div>
-            <div class="pill" id="statMastered">Sicher: –</div>
-            <button id="resetBtn" class="btn danger">Reset</button>
-          </div>
+  <div class="appShell">
+    <header class="hero">
+      <div class="heroCopy">
+        <p class="eyebrow">Merkzahlen Atelier</p>
+        <h1>Geschichte lernen wie ein Trainingsraum, nicht wie ein Chatfenster.</h1>
+        <p class="heroText">
+          Baue gezielte Sessions, trainiere nur fällige oder unsichere Daten und lass dir nach jeder Runde
+          zeigen, was wirklich sitzt.
+        </p>
+        <div class="heroActions">
+          <button id="startBtn" class="btn btnPrimary">Session starten</button>
+          <button id="installBtn" class="btn btnGhost" hidden>PWA installieren</button>
         </div>
       </div>
 
-      <div class="actions">
-        <button id="startBtn" class="btn primary">Start</button>
-        <button id="shuffleBtn" class="btn">Mischen</button>
-      </div>
-    </section>
-
-    <section class="card" id="settingsCard">
-      <div class="card-h">
-        <h2>Settings & Vibes</h2>
-        <div class="hint">Optik, Ton, Sound. Alles lokal.</div>
-      </div>
-
-      <div class="grid settingsGrid">
-        <label class="field">
-          <span>Theme</span>
-          <select id="themeSelect"></select>
-          <div class="fieldNote" id="themeLockNote">Alle Themes sind direkt verfügbar.</div>
-        </label>
-
-        <label class="field">
-          <span>App-Ton</span>
-          <select id="toneSelect">
-            <option value="normal">Normal</option>
-            <option value="ironic">Ironisch</option>
-            <option value="brutal">Brutal ehrlich</option>
-          </select>
-        </label>
-
-        <label class="field">
-          <span>Darstellung</span>
-          <select id="modeSelectUi">
-            <option value="dark">Dark Mode</option>
-            <option value="light">Light Mode</option>
-          </select>
-        </label>
-
-        <label class="field">
-          <span>Ambient Sound</span>
-          <select id="soundSelect"></select>
-        </label>
-
-        <label class="field">
-          <span>Sound</span>
-          <div class="toggleRow">
-            <button id="soundToggle" class="btn ghost">Sound: Aus</button>
-            <input id="soundVolume" type="range" min="0" max="1" step="0.05" value="0.35" />
-          </div>
-        </label>
-      </div>
-    </section>
-
-    <section class="card" id="playCard" hidden>
-      <div class="card-h">
-        <h2 id="playTitle">Session</h2>
-        <div class="hint" id="playHint">Bleib ruhig. Geschichte rennt nicht weg.</div>
-      </div>
-
-      <div class="play">
-        <div class="qbox">
-          <div class="qmeta">
-            <div class="pill" id="qIndex">1/1</div>
-            <div class="pill" id="qScore">Score: 0</div>
-            <div class="pill" id="qStreak">Streak: 0</div>
-            <div class="pill" id="qLevel">Level: 1</div>
-            <div class="pill" id="qXp">XP: 0</div>
-          </div>
-          <div class="streakStatus" id="streakStatus">Streaks, die schmerzen: aus.</div>
-          <div class="q" id="question">–</div>
-          <div class="a" id="answer" hidden>–</div>
-
-          <div id="mcArea" class="mc" hidden></div>
-
-          <div id="typeArea" class="type" hidden>
-            <input id="typeInput" type="text" placeholder="Antwort eintippen…" autocomplete="off" />
-            <button id="checkBtn" class="btn">Prüfen</button>
-          </div>
-
-          <div class="playActions">
-            <button id="revealBtn" class="btn ghost">Aufdecken</button>
-            <button id="goodBtn" class="btn ok" hidden>✅ Konnte ich</button>
-            <button id="badBtn" class="btn danger" hidden>❌ Nope</button>
-            <button id="nextBtn" class="btn primary" hidden>Weiter</button>
-          </div>
+      <div class="heroPanel">
+        <div class="heroPanelCard spotlight">
+          <span class="spotlightLabel">Heute relevant</span>
+          <strong id="heroDue">0 Karten fällig</strong>
+          <p id="heroFocus">Wähle einen Schwerpunkt und starte direkt mit den wichtigsten Karten.</p>
         </div>
 
-        <aside class="side">
-          <div class="sideCard">
-            <div class="sideTitle">Mini-Stats</div>
-            <div class="sideRow"><span>Richtig</span><b id="sCorrect">0</b></div>
-            <div class="sideRow"><span>Falsch</span><b id="sWrong">0</b></div>
-            <div class="sideRow"><span>Genauigkeit</span><b id="sAcc">–</b></div>
+        <div class="heroPanelGrid">
+          <div class="heroStat">
+            <span>Beherrscht</span>
+            <strong id="statMastered">0</strong>
           </div>
-
-          <div class="sideCard">
-            <div class="sideTitle">Upgrade</div>
-            <div class="sideRow"><span>Level</span><b id="levelLabel">1</b></div>
-            <div class="levelBar">
-              <div class="levelFill" id="levelFill" style="width: 0%"></div>
-            </div>
-            <div class="sideText" id="levelHint">Sammle XP, schalte Themes frei.</div>
+          <div class="heroStat">
+            <span>Schwachstellen</span>
+            <strong id="statWeak">0</strong>
           </div>
-
-          <div class="sideCard">
-            <div class="sideTitle">Spaced-Repetition</div>
-            <div class="sideText">
-              ✅ = Karte wandert weiter raus (später fällig) <br/>
-              ❌ = Karte kommt schneller wieder.
-            </div>
+          <div class="heroStat">
+            <span>Trefferquote</span>
+            <strong id="statAccuracy">-</strong>
           </div>
-        </aside>
+          <div class="heroStat">
+            <span>Aktive Klassen</span>
+            <strong id="statDecks">4</strong>
+          </div>
+        </div>
       </div>
-    </section>
+    </header>
 
-  <section class="footer">
-    <div class="tiny">
-      Läuft offline (PWA), speichert nur lokal (localStorage). Keine Cloud. Kein Drama.
-    </div>
-  </section>
-  </main>
+    <main class="layout">
+      <section class="controlRail">
+        <article class="panel">
+          <div class="panelHead">
+            <div>
+              <p class="panelKicker">Session-Architektur</p>
+              <h2>Was soll diese Runde leisten?</h2>
+            </div>
+            <p class="panelHint" id="sessionHint">Gezielte Wiederholung schlägt Deko.</p>
+          </div>
 
-  <div class="levelUpBanner" id="levelUpBanner" aria-live="polite" hidden>
-    <div class="levelUpTitle">Level Up!</div>
-    <div class="levelUpText" id="levelUpText">Upgrade freigeschaltet.</div>
+          <div class="controlGrid">
+            <label class="field">
+              <span>Lernmodus</span>
+              <select id="modeSelect">
+                <option value="mix">Intelligenter Mix</option>
+                <option value="cards">Karteikarten</option>
+                <option value="mc">Multiple Choice</option>
+                <option value="type">Tippen</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Richtung</span>
+              <select id="dirSelect">
+                <option value="year2event">Merkzahl -> Ereignis</option>
+                <option value="event2year">Ereignis -> Merkzahl</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Fokus</span>
+              <select id="focusSelect">
+                <option value="mixed">Gemischt, aber priorisiert</option>
+                <option value="due">Nur fällig</option>
+                <option value="new">Nur neu</option>
+                <option value="weak">Nur unsicher</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Fragen</span>
+              <input id="sessionSize" type="number" min="5" max="60" value="16" />
+            </label>
+          </div>
+
+          <div class="segmented" id="themeSwitch" aria-label="Farbstil">
+            <button type="button" data-theme="atelier-night" class="segmentedBtn isActive">Atelier Night</button>
+            <button type="button" data-theme="paper-sun">Paper Sun</button>
+            <button type="button" data-theme="oxide-pulse">Oxide Pulse</button>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panelHead">
+            <div>
+              <p class="panelKicker">Kurskarte</p>
+              <h2>Welche Klassen sollen drin sein?</h2>
+            </div>
+            <button id="toggleAllDecksBtn" class="btn btnGhost">Alle umschalten</button>
+          </div>
+
+          <div class="deckChips" id="deckFilter"></div>
+          <p class="microcopy" id="deckSummary">Alle Klassen aktiv.</p>
+        </article>
+
+        <article class="panel">
+          <div class="panelHead">
+            <div>
+              <p class="panelKicker">Lernsystem</p>
+              <h2>Was wichtig ist</h2>
+            </div>
+          </div>
+
+          <ul class="priorityList">
+            <li>Spaced Repetition bleibt erhalten, weil sie direkt Lernleistung verbessert.</li>
+            <li>Fehlerfokus und Klassenfilter sind neu, damit Sessions gezielt statt zufällig werden.</li>
+            <li>Sound, Ton-Personas und Theme-Unlocks wurden entfernt, weil sie den Kernfluss eher verwässern.</li>
+          </ul>
+
+          <div class="quickStats">
+            <div class="quickStatCard">
+              <span>Fällig</span>
+              <strong id="quickDue">0</strong>
+            </div>
+            <div class="quickStatCard">
+              <span>Neu</span>
+              <strong id="quickNew">0</strong>
+            </div>
+            <div class="quickStatCard">
+              <span>Unsicher</span>
+              <strong id="quickWeak">0</strong>
+            </div>
+            <div class="quickStatCard">
+              <span>Reset</span>
+              <button id="resetBtn" class="btn btnDanger">Fortschritt löschen</button>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="practiceRail">
+        <article class="sessionStage panel" id="playCard" hidden>
+          <div class="stageHead">
+            <div>
+              <p class="panelKicker">Live-Session</p>
+              <h2 id="playTitle">Trainingsrunde</h2>
+            </div>
+            <div class="stageMeta">
+              <span class="badge" id="qIndex">1/1</span>
+              <span class="badge" id="qModeLabel">Mix</span>
+              <span class="badge" id="qStreak">Serie 0</span>
+            </div>
+          </div>
+
+          <div class="stageBody">
+            <div class="promptRail">
+              <p class="promptContext" id="questionContext">Klasse 7 · Fällig</p>
+              <div class="question" id="question">-</div>
+              <div class="answer" id="answer" hidden>-</div>
+
+              <div id="mcArea" class="optionGrid" hidden></div>
+
+              <div id="typeArea" class="typeArea" hidden>
+                <input id="typeInput" type="text" autocomplete="off" placeholder="Antwort eintippen" />
+                <button id="checkBtn" class="btn btnGhost">Prüfen</button>
+              </div>
+
+              <div class="actionRow">
+                <button id="revealBtn" class="btn btnGhost">Antwort zeigen</button>
+                <button id="goodBtn" class="btn btnPositive" hidden>Sitzt</button>
+                <button id="badBtn" class="btn btnDanger" hidden>Noch nicht</button>
+                <button id="nextBtn" class="btn btnPrimary" hidden>Weiter</button>
+              </div>
+            </div>
+
+            <aside class="insightRail">
+              <div class="insightCard">
+                <span>Score</span>
+                <strong id="qScore">0</strong>
+              </div>
+              <div class="insightCard">
+                <span>Richtig</span>
+                <strong id="sCorrect">0</strong>
+              </div>
+              <div class="insightCard">
+                <span>Falsch</span>
+                <strong id="sWrong">0</strong>
+              </div>
+              <div class="insightCard">
+                <span>Genauigkeit</span>
+                <strong id="sAcc">-</strong>
+              </div>
+              <div class="sessionNote" id="playHint">
+                Eine saubere Session ist kurz, fokussiert und lässt dir am Ende klare Baustellen übrig.
+              </div>
+            </aside>
+          </div>
+        </article>
+
+        <article class="panel" id="summaryCard">
+          <div class="panelHead">
+            <div>
+              <p class="panelKicker">Analyse</p>
+              <h2>Session-Zusammenfassung</h2>
+            </div>
+          </div>
+
+          <div id="summaryEmpty" class="emptyState">
+            Starte eine Runde. Danach bekommst du hier eine kompakte Auswertung mit Genauigkeit, Serie und den schwächsten Karten.
+          </div>
+
+          <div id="summaryContent" class="summaryContent" hidden>
+            <div class="summaryGrid">
+              <div class="summaryCard">
+                <span>Trefferquote</span>
+                <strong id="summaryAccuracy">0%</strong>
+              </div>
+              <div class="summaryCard">
+                <span>Beste Serie</span>
+                <strong id="summaryBestStreak">0</strong>
+              </div>
+              <div class="summaryCard">
+                <span>Bearbeitet</span>
+                <strong id="summaryTotal">0</strong>
+              </div>
+              <div class="summaryCard">
+                <span>Empfehlung</span>
+                <strong id="summaryRecommendation">-</strong>
+              </div>
+            </div>
+
+            <div class="summaryListWrap">
+              <h3>Diese Karten brauchen noch Wiederholung</h3>
+              <ul id="summaryWeakList" class="summaryList"></ul>
+            </div>
+          </div>
+        </article>
+      </section>
+    </main>
   </div>
-  <canvas id="confettiCanvas" aria-hidden="true"></canvas>
-  <audio id="ambientAudio" loop></audio>
 
   <script src="app.js"></script>
 </body>
