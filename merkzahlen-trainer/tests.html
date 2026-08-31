@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Merkzahlen Atelier Tests</title>
+  <title>Merkzahlen Tests</title>
   <style>
     body {
       margin: 0;
@@ -19,7 +19,7 @@
   <script src="app.js"></script>
 </head>
 <body>
-  <h1>Merkzahlen Atelier Testlauf</h1>
+  <h1>Merkzahlen Testlauf</h1>
   <div id="results"></div>
   <script>
     const results = document.getElementById("results");
@@ -49,9 +49,14 @@
     assert("normalizeText entfernt Sonderzeichen konsistent", AppCore.normalizeText("Französische Revolution!") === "franzosische revolution");
     assert("evaluateTypedAnswer akzeptiert Teiltreffer sinnvoll", AppCore.evaluateTypedAnswer("Franzosische Revolution", "Französische Revolution"));
     assert("filterCardsByDeck filtert aktive Klassen", AppCore.filterCardsByDeck(sampleCards, ["Klasse 7", "Klasse 10"]).length === 2);
-    assert("computeOverview zaehlt fällige Karten", AppCore.computeOverview(sampleCards, progress, ["Klasse 7", "Klasse 8", "Klasse 9", "Klasse 10"]).due === 3);
+    assert("Neue Karten gelten nicht zugleich als fällig", AppCore.computeOverview(sampleCards, progress, ["Klasse 7", "Klasse 8", "Klasse 9", "Klasse 10"]).due === 2);
+    assert("computeOverview zählt neue Karten getrennt", AppCore.computeOverview(sampleCards, progress, ["Klasse 7", "Klasse 8", "Klasse 9", "Klasse 10"]).newCount === 1);
     assert("chooseCards priorisiert unsichere Karten", AppCore.chooseCards(sampleCards, progress, { focus: "weak", count: 2, selectedDecks: ["Klasse 7", "Klasse 8", "Klasse 9", "Klasse 10"] }).some((card) => card.id === "b"));
+    assert("Leerer Fokus fällt nicht heimlich auf andere Karten zurück", AppCore.chooseCards(sampleCards, {}, { focus: "weak", count: 2 }).length === 0);
+    assert("Jahresgrenze filtert spätere Karten", AppCore.filterCards(sampleCards, [], 1900).length === 2);
+    assert("Kartenzahl wird sicher begrenzt", AppCore.clampSessionSize(-8) === 5 && AppCore.clampSessionSize(999) === 60);
     assert("buildMcOptions erzeugt bis zu vier Optionen", AppCore.buildMcOptions(sampleCards, sampleCards[0], "year2event").length === 4);
+    assert("Kurze Jahresfragmente werden nicht akzeptiert", !AppCore.evaluateTypedAnswer("1939", "1939-1945"));
 
     const graded = {};
     AppCore.applyGrade(graded, sampleCards[0], false, 1000);

@@ -1,0 +1,9 @@
+{
+  "name": "merkzahlen",
+  "version": "3.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check merkzahlen-trainer/app.js && node --test"
+  }
+}
