@@ -36,6 +36,13 @@ test("filtert Klassen und Jahresgrenze gemeinsam", () => {
   assert.deepEqual(filtered.map((card) => card.id), ["a", "b"]);
 });
 
+test("liest alle Schreibweisen des Schulkatalogs zeitlich korrekt", () => {
+  assert.equal(AppCore.cardEndYear({ prompt: "5.März1953" }), 1953);
+  assert.equal(AppCore.cardEndYear({ prompt: "1948/49" }), 1949);
+  assert.equal(AppCore.cardEndYear({ prompt: "1989/90" }), 1990);
+  assert.equal(AppCore.cardEndYear({ prompt: "12.Jh." }), 1200);
+});
+
 test("begrenzt die Rundengröße", () => {
   assert.equal(AppCore.clampSessionSize(-2), 5);
   assert.equal(AppCore.clampSessionSize(22), 22);
@@ -51,11 +58,14 @@ test("formuliert die Kartenanzahl auch im Singular korrekt", () => {
 test("prüft Datumsantworten streng", () => {
   assert.equal(AppCore.evaluateTypedAnswer("1939", "1939-1945"), false);
   assert.equal(AppCore.evaluateTypedAnswer("1939-1945", "1939-1945"), true);
+  assert.equal(AppCore.evaluateTypedAnswer("1914-1918", "1914 – 1918"), true);
+  assert.equal(AppCore.evaluateTypedAnswer("13.August1961", "13. August 1961"), true);
 });
 
 test("toleriert Schreibvarianten bei Textantworten", () => {
   assert.equal(AppCore.evaluateTypedAnswer("Franzosische Revolution", "Französische Revolution"), true);
   assert.equal(AppCore.evaluateTypedAnswer("irgendwas Revolution", "Französische Revolution"), false);
+  assert.equal(AppCore.evaluateTypedAnswer("1 Weltumsegelung Magellans", "1. Weltumsegelung Magellans"), true);
 });
 
 test("aktualisiert Wiederholungsstände", () => {
