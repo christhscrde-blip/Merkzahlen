@@ -1,4 +1,4 @@
-const CACHE = "merkzahlen-atelier-v2";
+const CACHE = "merkzahlen-v3";
 const ASSETS = [
   "./",
   "./index.html",
@@ -6,8 +6,6 @@ const ASSETS = [
   "./app.js",
   "./data.json",
   "./manifest.json",
-  "./tests.html",
-  "./smoke.html",
   "./icon-192.png",
   "./icon-512.png",
 ];

@@ -1,11 +1,11 @@
 {
-  "name": "Merkzahlen Atelier",
+  "name": "Merkzahlen",
   "short_name": "Merkzahlen",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#13111c",
-  "theme_color": "#13111c",
-  "description": "Gezielte Offline-Lernsessions fuer historische Merkzahlen mit Spaced Repetition, Fehlerfokus und Session-Analyse.",
+  "background_color": "#111111",
+  "theme_color": "#171717",
+  "description": "Historische Merkzahlen von Klasse 7 bis 10 gezielt und offline lernen.",
   "icons": [
     {
       "src": "icon-192.png",
