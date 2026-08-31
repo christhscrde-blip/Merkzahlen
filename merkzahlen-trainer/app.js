@@ -164,6 +164,10 @@ const AppCore = (() => {
     return Math.min(60, Math.max(5, parsed));
   }
 
+  function formatCardCount(count) {
+    return `${count} ${count === 1 ? "Karte" : "Karten"}`;
+  }
+
   function chooseCards(cards, progress, options, timestamp = Date.now()) {
     const {
       focus = "mixed",
@@ -290,6 +294,7 @@ const AppCore = (() => {
     getCardMeta,
     computeOverview,
     clampSessionSize,
+    formatCardCount,
     chooseCards,
     directionPair,
     sessionModeForIndex,
@@ -421,7 +426,7 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
     els.statWeak.textContent = String(overview.weak);
     els.statMastered.textContent = String(overview.mastered);
     els.statAccuracy.textContent = overview.accuracy == null ? "Noch keine Antworten" : `${overview.accuracy}% Trefferquote`;
-    els.sessionHint.textContent = `${overview.total} Karten · ${AppCore.MODE_LABELS[els.modeSelect.value]} · ${AppCore.FOCUS_LABELS[els.focusSelect.value]}`;
+    els.sessionHint.textContent = `${AppCore.formatCardCount(overview.total)} · ${AppCore.MODE_LABELS[els.modeSelect.value]} · ${AppCore.FOCUS_LABELS[els.focusSelect.value]}`;
   }
 
   function updateSessionStats() {
@@ -456,11 +461,13 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
     els.welcomeCard.hidden = true;
     els.emptyTraining.hidden = true;
     els.playCard.hidden = false;
-    els.playTitle.textContent = `Lernrunde mit ${session.cards.length} Karten`;
+    els.playTitle.textContent = `Lernrunde mit ${AppCore.formatCardCount(session.cards.length)}`;
     els.qIndex.textContent = `${session.index + 1} / ${session.cards.length}`;
     els.qModeLabel.textContent = AppCore.MODE_LABELS[currentMode];
     els.qProgress.value = session.index + 1;
     els.qProgress.max = session.cards.length;
+    els.qProgress.textContent = `${session.index + 1} von ${session.cards.length}`;
+    els.qProgress.setAttribute("aria-label", `Fortschritt: ${session.index + 1} von ${session.cards.length}`);
     els.questionContext.textContent = `${card.deck} · ${meta.isNew ? "Neu" : meta.isWeak ? "Unsicher" : meta.due ? "Fällig" : "Wiederholung"}`;
     els.question.textContent = pair.question;
     els.answer.textContent = pair.answer;

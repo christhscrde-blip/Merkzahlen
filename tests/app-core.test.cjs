@@ -42,6 +42,12 @@ test("begrenzt die Rundengröße", () => {
   assert.equal(AppCore.clampSessionSize(500), 60);
 });
 
+test("formuliert die Kartenanzahl auch im Singular korrekt", () => {
+  assert.equal(AppCore.formatCardCount(0), "0 Karten");
+  assert.equal(AppCore.formatCardCount(1), "1 Karte");
+  assert.equal(AppCore.formatCardCount(56), "56 Karten");
+});
+
 test("prüft Datumsantworten streng", () => {
   assert.equal(AppCore.evaluateTypedAnswer("1939", "1939-1945"), false);
   assert.equal(AppCore.evaluateTypedAnswer("1939-1945", "1939-1945"), true);
