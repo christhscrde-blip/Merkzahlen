@@ -33,7 +33,11 @@ Zusätzlich stehen unter `merkzahlen-trainer/tests.html` ein Browser-Testlauf un
 
 ## Daten
 
-Die Merkzahlen liegen in `merkzahlen-trainer/data.json`. Jede Karte benötigt:
+Die Merkzahlen liegen in `merkzahlen-trainer/data.json`. Als alleinige Inhaltsquelle gilt der schulische „Merkzahlenkatalog (2025/26)“. Die 56 Katalogzeilen sind strikt so zugeordnet: Klasse 7 enthält 11, Klasse 8 enthält 4, Klasse 9 enthält 24 und Klasse 10 enthält 17 Einträge.
+
+Die doppelt vergebenen Merkzahlen 1919 und 1955 werden in der Richtung „Merkzahl → Ereignis“ jeweils mit beiden zugehörigen Ereignissen abgefragt. In der Gegenrichtung bleiben es einzelne Katalogzeilen.
+
+Jede Karte benötigt:
 
 ```json
 {

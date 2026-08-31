@@ -38,9 +38,17 @@ const AppCore = (() => {
       .replace(/[–—]/g, "-")
       .replace(/[„“\"]/g, "")
       .replace(/[^\p{L}\p{N}\s./-]/gu, " ")
+      .replace(/\s*([./-])\s*/g, "$1")
       .replace(/\s+/g, " ")
       .trim()
       .toLowerCase();
+  }
+
+  function isDateLikeAnswer(value) {
+    const remainder = normalizeText(value)
+      .replace(/um|jh|januar|februar|marz|april|mai|juni|juli|august|september|oktober|november|dezember/g, "")
+      .replace(/[\d./\s-]/g, "");
+    return /\d/.test(String(value)) && remainder.length === 0;
   }
 
   function loadJson(key, fallback) {
@@ -101,9 +109,17 @@ const AppCore = (() => {
   }
 
   function cardEndYear(card) {
-    const years = String(card.prompt).match(/\b\d{4}\b/g)?.map(Number) || [];
+    const prompt = String(card.prompt);
+    const years = prompt.match(/\d{4}/g)?.map(Number) || [];
+    const shortenedRange = prompt.match(/(\d{4})\s*[-–—/]\s*(\d{2})(?!\d)/);
+    if (shortenedRange) {
+      const start = Number(shortenedRange[1]);
+      let end = Math.floor(start / 100) * 100 + Number(shortenedRange[2]);
+      if (end < start) end += 100;
+      years.push(end);
+    }
     if (years.length > 0) return Math.max(...years);
-    const century = String(card.prompt).match(/(\d{1,2})\.\s*Jh\./i);
+    const century = prompt.match(/(\d{1,2})\.\s*Jh\./i);
     return century ? Number(century[1]) * 100 : 0;
   }
 
@@ -198,10 +214,21 @@ const AppCore = (() => {
       .map((entry) => entry.card);
   }
 
-  function directionPair(card, direction) {
-    return direction === "event2year"
-      ? { question: card.answer, answer: card.prompt }
-      : { question: card.prompt, answer: card.answer };
+  function directionPair(card, direction, cards = [card]) {
+    if (direction === "event2year") {
+      return { question: card.answer, answer: card.prompt, answerCount: 1 };
+    }
+
+    const matchingAnswers = cards
+      .filter((candidate) => candidate.deck === card.deck && candidate.prompt === card.prompt)
+      .map((candidate) => candidate.answer)
+      .filter((answer, index, answers) => answers.indexOf(answer) === index);
+    const answers = matchingAnswers.length > 0 ? matchingAnswers : [card.answer];
+    return {
+      question: card.prompt,
+      answer: answers.join("; "),
+      answerCount: answers.length,
+    };
   }
 
   function sessionModeForIndex(mode, index) {
@@ -218,11 +245,11 @@ const AppCore = (() => {
   }
 
   function buildMcOptions(cards, currentCard, direction) {
-    const correct = directionPair(currentCard, direction).answer;
+    const correct = directionPair(currentCard, direction, cards).answer;
     const candidates = shuffle(
       cards
         .filter((card) => card.id !== currentCard.id)
-        .map((card) => directionPair(card, direction).answer)
+        .map((card) => directionPair(card, direction, cards).answer)
         .filter((answer, index, values) => answer !== correct && values.indexOf(answer) === index),
     );
     return shuffle([correct, ...candidates.slice(0, 3)]);
@@ -233,11 +260,14 @@ const AppCore = (() => {
     const normalizedTruth = normalizeText(truth);
     if (!normalizedInput || !normalizedTruth) return false;
     if (normalizedInput === normalizedTruth) return true;
-    if (/\d/.test(normalizedTruth)) return false;
+    if (isDateLikeAnswer(truth)) {
+      return normalizedInput.replace(/\s/g, "") === normalizedTruth.replace(/\s/g, "");
+    }
 
     const stopwords = new Set(["der", "die", "das", "den", "dem", "des", "und", "von", "im", "in", "zu", "zur", "zum"]);
-    const truthParts = normalizedTruth.split(" ").filter((part) => part.length > 1 && !stopwords.has(part));
-    const inputParts = new Set(normalizedInput.split(" ").filter((part) => part.length > 1 && !stopwords.has(part)));
+    const wordForm = (value) => value.replace(/[./-]/g, " ").replace(/\s+/g, " ").trim();
+    const truthParts = wordForm(normalizedTruth).split(" ").filter((part) => part.length > 1 && !stopwords.has(part));
+    const inputParts = new Set(wordForm(normalizedInput).split(" ").filter((part) => part.length > 1 && !stopwords.has(part)));
     const overlap = truthParts.filter((part) => inputParts.has(part)).length;
     return truthParts.length > 0 && overlap >= Math.ceil(truthParts.length * 0.7);
   }
@@ -453,7 +483,8 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
       return;
     }
     const card = session.cards[session.index];
-    const pair = AppCore.directionPair(card, session.direction);
+    const activeCards = AppCore.filterCards(state.cards, state.profile.selectedDecks, state.profile.cutoffYear);
+    const pair = AppCore.directionPair(card, session.direction, activeCards);
     const currentMode = AppCore.sessionModeForIndex(session.mode, session.index);
     const meta = AppCore.getCardMeta(card, state.progress);
     session.currentMode = currentMode;
@@ -468,7 +499,9 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
     els.qProgress.max = session.cards.length;
     els.qProgress.textContent = `${session.index + 1} von ${session.cards.length}`;
     els.qProgress.setAttribute("aria-label", `Fortschritt: ${session.index + 1} von ${session.cards.length}`);
-    els.questionContext.textContent = `${card.deck} · ${meta.isNew ? "Neu" : meta.isWeak ? "Unsicher" : meta.due ? "Fällig" : "Wiederholung"}`;
+    const learningState = meta.isNew ? "Neu" : meta.isWeak ? "Unsicher" : meta.due ? "Fällig" : "Wiederholung";
+    const multipleAnswers = pair.answerCount > 1 ? ` · ${pair.answerCount} Ereignisse` : "";
+    els.questionContext.textContent = `${card.deck} · ${learningState}${multipleAnswers}`;
     els.question.textContent = pair.question;
     els.answer.textContent = pair.answer;
     els.answer.hidden = true;
