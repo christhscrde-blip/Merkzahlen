@@ -1,12 +1,13 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 const AppCore = require("../merkzahlen-trainer/app.js");
 const data = require("../merkzahlen-trainer/data.json");
 
 const cards = AppCore.flattenDecks(data);
 const directions = ["year2event", "event2year"];
 
-test("jede Merkzahl ist vollständig, eindeutig und in beiden Richtungen spielbar", () => {
+test("jede Katalogzeile ist vollständig und in beiden Richtungen spielbar", () => {
   assert.equal(cards.length, 56);
 
   for (const card of cards) {
@@ -15,7 +16,7 @@ test("jede Merkzahl ist vollständig, eindeutig und in beiden Richtungen spielba
     assert.ok(card.answer.trim(), `${card.id}: Ereignis fehlt`);
 
     for (const direction of directions) {
-      const pair = AppCore.directionPair(card, direction);
+      const pair = AppCore.directionPair(card, direction, cards);
       assert.ok(pair.question.trim(), `${card.id}/${direction}: Frage fehlt`);
       assert.ok(pair.answer.trim(), `${card.id}/${direction}: Antwort fehlt`);
       assert.equal(
@@ -27,14 +28,37 @@ test("jede Merkzahl ist vollständig, eindeutig und in beiden Richtungen spielba
   }
 
   assert.equal(new Set(cards.map((card) => card.id)).size, cards.length);
-  assert.equal(new Set(cards.map((card) => card.prompt)).size, cards.length);
   assert.equal(new Set(cards.map((card) => card.answer)).size, cards.length);
+  const duplicatePrompts = [...cards.reduce((counts, card) => {
+    counts.set(card.prompt, (counts.get(card.prompt) || 0) + 1);
+    return counts;
+  }, new Map())].filter(([, count]) => count > 1);
+  assert.deepEqual(duplicatePrompts, [["1919", 2], ["1955", 2]]);
+});
+
+test("entspricht ausschließlich dem Merkzahlenkatalog 2025/26", () => {
+  const catalogHash = crypto.createHash("sha256").update(JSON.stringify(data)).digest("hex");
+  assert.equal(catalogHash, "e2d19ab23e593ba42d7b454bd2cc1aaf1c7fe40d75260db4b82903cf8420d43b");
+});
+
+test("fasst doppelte Merkzahlen zu eindeutigen Jahresfragen zusammen", () => {
+  const pairs = new Map([
+    ["1919", "Versailler Vertrag; Gründung des Völkerbundes"],
+    ["1955", "Pariser Verträge (Beitritt der BRD zur NATO); Beitritt der DDR zum Warschauer Pakt"],
+  ]);
+
+  for (const [prompt, answer] of pairs) {
+    const card = cards.find((entry) => entry.prompt === prompt);
+    const pair = AppCore.directionPair(card, "year2event", cards);
+    assert.equal(pair.answer, answer);
+    assert.equal(pair.answerCount, 2);
+  }
 });
 
 test("Multiple Choice bietet bei jeder Merkzahl und Richtung genau eine richtige Lösung", () => {
   for (const card of cards) {
     for (const direction of directions) {
-      const correct = AppCore.directionPair(card, direction).answer;
+      const correct = AppCore.directionPair(card, direction, cards).answer;
       const options = AppCore.buildMcOptions(cards, card, direction);
       assert.equal(options.length, 4, `${card.id}/${direction}: nicht vier Optionen`);
       assert.equal(new Set(options).size, 4, `${card.id}/${direction}: doppelte Optionen`);
@@ -106,7 +130,7 @@ test("alle angebotenen Zeitgrenzen liefern den erwarteten vollständigen Umfang"
 test("jede Klasse bleibt als vollständiger, auswählbarer Stapel erhalten", () => {
   assert.deepEqual(
     Object.fromEntries(Object.entries(data).map(([deck, entries]) => [deck, entries.length])),
-    { "Klasse 7": 11, "Klasse 8": 4, "Klasse 9": 14, "Klasse 10": 27 },
+    { "Klasse 7": 11, "Klasse 8": 4, "Klasse 9": 24, "Klasse 10": 17 },
   );
 
   for (const [deck, entries] of Object.entries(data)) {
