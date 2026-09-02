@@ -85,7 +85,7 @@ async function mount(storage = new Map(), failSaving = false) {
 
 for (const mode of ["cards", "mc", "type", "mix"]) {
   for (const direction of ["year2event", "event2year"]) {
-    test(`echte UI-Handler: 56 Aufgaben ${mode}/${direction}, Zähler, Auswertung, Neuladen und Fehler-Runde`, async () => {
+    test(`echte UI-Handler: zufällige Vollrunde ${mode}/${direction}, Zähler, Fehler-Rücklauf und Auswertung`, async () => {
       const app = await mount();
       const el = (id) => app.nodes.get(id);
       el("modeSelect").value = mode;
@@ -96,21 +96,23 @@ for (const mode of ["cards", "mc", "type", "mix"]) {
       let right = 0;
       let wrong = 0;
       const observed = [];
-      for (let index = 0; index < 56; index++) {
+      let attempt = 0;
+      while (el("summaryCard").hidden && attempt < 80) {
         const question = el("question").textContent;
         const deck = el("questionContext").textContent.split(" · ")[0];
         const current = cards.find((card) => card.deck === deck && (direction === "year2event" ? card.prompt : card.answer) === question);
         assert.ok(current, question);
         const pair = Core.directionPair(current, direction, cards);
-        const correct = index % 3 !== 0;
-        const currentMode = Core.sessionModeForIndex(mode, index);
+        const correct = attempt >= 4;
+        const currentMode = Object.entries(Core.MODE_LABELS).find(([, label]) => label === el("qModeLabel").textContent)?.[0];
+        assert.ok(["cards", "mc", "type"].includes(currentMode));
         let submitted = "";
         if (currentMode === "cards") {
           el("revealBtn").click();
-          assert.equal(el("qProgress").value, index, "Aufdecken allein darf nicht zählen");
+          assert.equal(el("qProgress").value, attempt, "Aufdecken allein darf nicht zählen");
           el(correct ? "goodBtn" : "badBtn").click();
         } else if (currentMode === "type") {
-          submitted = correct ? pair.answer : `Testfehler ${index}`;
+          submitted = correct ? pair.answer : `Testfehler ${attempt}`;
           el("typeInput").value = submitted;
           el("typeInput").fire("keydown", { key: "Enter" });
           el("checkBtn").click(); // repeated click must never grade twice
@@ -124,29 +126,31 @@ for (const mode of ["cards", "mc", "type", "mix"]) {
         observed.push({ question, expectedAnswer: pair.answer, submittedAnswer: submitted, correct });
         assert.equal(el("sCorrect").textContent, String(right));
         assert.equal(el("sWrong").textContent, String(wrong));
-        assert.equal(el("qProgress").value, index + 1);
+        assert.equal(el("qProgress").value, attempt + 1);
         assert.match(el("statAccuracy").textContent, new RegExp(`${right} richtig · ${wrong} falsch`));
         assert.equal(el("answerFeedback").hidden, false);
         assert.equal(el("answerFeedback").dataset.result, correct ? "correct" : "wrong");
-        assert.equal(el("answerTrack").children[index].classList.contains(correct ? "isCorrect" : "isWrong"), true);
+        assert.equal(el("answerTrack").children[attempt].classList.contains(correct ? "isCorrect" : "isWrong"), true);
         el("nextBtn").click();
+        attempt += 1;
       }
+      assert.equal(attempt, 60, "vier Fehler müssen mit zufälligem Abstand erneut erscheinen");
       assert.equal(el("summaryCard").hidden, false);
-      assert.equal(el("summaryCounts").textContent, "37 richtig · 19 falsch · 56 beantwortet");
-      assert.equal(el("summaryResults").children.length, 56);
+      assert.equal(el("summaryCounts").textContent, "56 richtig · 4 falsch · 60 beantwortet");
+      assert.equal(el("summaryResults").children.length, 60);
       const summary = JSON.parse(app.storage.get(Core.PROFILE_KEY)).lastSummary;
       assert.equal(new Set(summary.results.map((item) => item.card.id)).size, 56);
       assert.deepEqual(summary.results.map(({ question, expectedAnswer, submittedAnswer, correct }) => ({ question, expectedAnswer, submittedAnswer, correct })), observed);
       el("onlyMistakes").checked = true;
       el("onlyMistakes").fire("change");
-      assert.equal(el("summaryResults").children.length, 19);
+      assert.equal(el("summaryResults").children.length, 4);
       assert.ok(el("summaryResults").children.every((node) => node.classList.contains("isWrong")));
       const reload = await mount(app.storage);
       assert.match(reload.nodes.get("summaryContext").textContent, /Letzte abgeschlossene Runde/);
       assert.equal(reload.nodes.get("summaryCounts").textContent, el("summaryCounts").textContent);
-      assert.equal(reload.nodes.get("summaryResults").children.length, 56);
+      assert.equal(reload.nodes.get("summaryResults").children.length, 60);
       reload.nodes.get("retryBtn").click();
-      assert.equal(reload.nodes.get("qProgress").max, 19);
+      assert.equal(reload.nodes.get("qProgress").max, 4);
       assert.equal(reload.nodes.get("qProgress").value, 0);
       assert.equal(reload.nodes.get("playTitle").textContent, "Deine zweite Chance");
     });
@@ -168,9 +172,36 @@ test("leere Eingabe zählt nicht; Lösung aufdecken zählt als genau ein Fehler"
   assert.equal(el("statDue").textContent, "1");
 });
 
+test("Prüfungsmodus nutzt alle Merkzahlen einmal und verrät keinen Lernstatus", async () => {
+  const app = await mount();
+  const el = (id) => app.nodes.get(id);
+  el("modeSelect").value = "exam";
+  el("modeSelect").fire("change");
+  assert.equal(el("focusSelect").disabled, true);
+  assert.equal(el("sessionSize").disabled, true);
+  assert.match(el("sessionHint").textContent, /jede Merkzahl genau einmal/);
+  el("startBtn").click();
+  assert.equal(el("qProgress").max, 56);
+  assert.match(el("questionContext").textContent, /Prüfung/);
+  assert.doesNotMatch(el("questionContext").textContent, /Neu|Unsicher|Fällig|Wiederholung/);
+  const currentMode = Object.entries(Core.MODE_LABELS).find(([, label]) => label === el("qModeLabel").textContent)?.[0];
+  if (currentMode === "cards") {
+    el("revealBtn").click();
+    el("badBtn").click();
+  } else if (currentMode === "type") {
+    el("typeInput").value = "absichtlich falsch";
+    el("checkBtn").click();
+  } else {
+    const expected = el("answer").textContent;
+    el("mcArea").children.find((node) => node.textContent !== expected).click();
+  }
+  assert.equal(el("qProgress").max, 56, "Fehler dürfen die Prüfung nicht verlängern");
+});
+
 test("Speicherfehler blockiert weder Feedback noch nächste Frage", async () => {
   const app = await mount(new Map(), true);
   const el = (id) => app.nodes.get(id);
+  el("modeSelect").value = "cards";
   el("startBtn").click();
   el("revealBtn").click();
   el("goodBtn").click();
@@ -189,6 +220,7 @@ test("alte unvollständige Auswertungen werden nicht als neue Antwortprotokolle 
 test("vorzeitig beendete Runden werten ausschließlich bewertete Aufgaben aus", async () => {
   const app = await mount();
   const el = (id) => app.nodes.get(id);
+  el("modeSelect").value = "cards";
   el("startBtn").click();
   assert.equal(el("modeSelect").disabled, true);
   el("revealBtn").click();
@@ -214,6 +246,7 @@ test("vorzeitig beendete Runden werten ausschließlich bewertete Aufgaben aus", 
 test("Unsicher-Anzeige erholt sich auch über UI-Bewertungen und Neuladen", async () => {
   const app = await mount();
   const el = (id) => app.nodes.get(id);
+  el("modeSelect").value = "cards";
   el("startBtn").click();
   el("revealBtn").click();
   el("badBtn").click();

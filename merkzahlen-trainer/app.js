@@ -8,6 +8,7 @@ const AppCore = (() => {
 
   const MODE_LABELS = {
     mix: "Mix",
+    exam: "Prüfung",
     cards: "Karteikarten",
     mc: "Multiple Choice",
     type: "Tippen",
@@ -214,32 +215,115 @@ const AppCore = (() => {
     return `${count} ${count === 1 ? "Karte" : "Karten"}`;
   }
 
-  function chooseCards(cards, progress, options, timestamp = Date.now()) {
+  function createSeededRandom(seed) {
+    let state = Number(seed) >>> 0;
+    return () => {
+      state += 0x6D2B79F5;
+      let value = state;
+      value = Math.imul(value ^ (value >>> 15), value | 1);
+      value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+      return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function freshRandom() {
+    const cryptoSource = typeof globalThis !== "undefined" ? globalThis.crypto : null;
+    if (cryptoSource?.getRandomValues) {
+      const value = new Uint32Array(1);
+      cryptoSource.getRandomValues(value);
+      return value[0] / 4294967296;
+    }
+    return Math.random();
+  }
+
+  function randomInt(min, max, rng = freshRandom) {
+    return min + Math.floor(rng() * (max - min + 1));
+  }
+
+  function weightedIndex(entries, weightFor, rng = freshRandom) {
+    const weights = entries.map((entry, index) => Math.max(0, Number(weightFor(entry, index)) || 0));
+    const total = weights.reduce((sum, weight) => sum + weight, 0);
+    if (total <= 0) return randomInt(0, entries.length - 1, rng);
+    let cursor = rng() * total;
+    for (let index = 0; index < weights.length; index += 1) {
+      cursor -= weights[index];
+      if (cursor < 0) return index;
+    }
+    return entries.length - 1;
+  }
+
+  function adaptiveWeight(meta) {
+    let weight = 1;
+    if (meta.isNew) weight += 0.5;
+    if (meta.due) weight += 1;
+    if (meta.isWeak) weight += 2;
+    weight += Math.min(3, Math.max(0, meta.state.wrong - meta.state.correct));
+    return weight;
+  }
+
+  function adjacencyFactor(previous, candidate) {
+    if (!previous) return 1;
+    if (previous.id === candidate.id) return 0;
+    if (previous.prompt === candidate.prompt) return 0;
+    if (previous.deck !== candidate.deck) return 1;
+    const distance = Math.abs(cardEndYear(previous) - cardEndYear(candidate));
+    if (distance <= 10) return 0.25;
+    if (distance <= 50) return 0.45;
+    return 0.7;
+  }
+
+  function weightedRandomOrder(entries, rng = freshRandom) {
+    const pool = entries.slice();
+    const result = [];
+    while (pool.length > 0) {
+      const previous = result.at(-1)?.card;
+      const index = weightedIndex(pool, (entry) => entry.weight * adjacencyFactor(previous, entry.card), rng);
+      result.push(pool.splice(index, 1)[0]);
+    }
+    return result;
+  }
+
+  function randomExamOrder(cards, rng = freshRandom) {
+    const result = shuffle(cards, rng);
+    for (let index = 1; index < result.length; index += 1) {
+      if (result[index - 1].prompt !== result[index].prompt) continue;
+      const candidates = [];
+      for (let swapIndex = index + 1; swapIndex < result.length; swapIndex += 1) {
+        if (result[swapIndex].prompt !== result[index - 1].prompt
+          && (swapIndex === result.length - 1 || result[swapIndex + 1].prompt !== result[index].prompt)) {
+          candidates.push(swapIndex);
+        }
+      }
+      if (candidates.length > 0) {
+        const swapIndex = candidates[randomInt(0, candidates.length - 1, rng)];
+        [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+      }
+    }
+    return result;
+  }
+
+  function chooseCards(cards, progress, options, timestamp = Date.now(), rng = freshRandom) {
     const {
       focus = "mixed",
       count = 16,
       selectedDecks = [],
       cutoffYear = Infinity,
+      mode = "mix",
     } = options;
     const active = filterCards(cards, selectedDecks, cutoffYear);
-    const scored = active.map((card) => {
+    if (mode === "exam") return randomExamOrder(active, rng);
+
+    const candidates = active.map((card) => {
       const meta = getCardMeta(card, progress, timestamp);
-      let weight = 1;
-      if (meta.due) weight += 6;
-      if (meta.isWeak) weight += 5;
-      if (meta.isNew) weight += 4;
-      weight += Math.max(0, meta.state.wrong - meta.state.correct);
-      return { card, meta, weight, tie: Math.random() };
+      return { card, meta, weight: adaptiveWeight(meta) };
     });
 
-    let filtered = scored;
-    if (focus === "due") filtered = scored.filter((entry) => entry.meta.due);
-    if (focus === "new") filtered = scored.filter((entry) => entry.meta.isNew);
-    if (focus === "weak") filtered = scored.filter((entry) => entry.meta.isWeak);
+    let filtered = candidates;
+    if (focus === "due") filtered = candidates.filter((entry) => entry.meta.due);
+    if (focus === "new") filtered = candidates.filter((entry) => entry.meta.isNew);
+    if (focus === "weak") filtered = candidates.filter((entry) => entry.meta.isWeak);
 
-    return filtered
-      .slice()
-      .sort((a, b) => b.weight - a.weight || a.meta.state.due - b.meta.state.due || a.tie - b.tie)
+    return weightedRandomOrder(filtered, rng)
       .slice(0, Math.min(clampSessionSize(count), filtered.length))
       .map((entry) => entry.card);
   }
@@ -261,28 +345,48 @@ const AppCore = (() => {
     };
   }
 
-  function sessionModeForIndex(mode, index) {
-    return mode === "mix" ? ["cards", "mc", "type"][index % 3] : mode;
+  function createModePlan(mode, count, rng = freshRandom) {
+    if (mode !== "mix" && mode !== "exam") return Array.from({ length: count }, () => mode);
+    const modes = ["cards", "mc", "type"];
+    const used = { cards: 0, mc: 0, type: 0 };
+    const plan = [];
+    while (plan.length < count) {
+      const recent = plan.slice(-2);
+      const index = weightedIndex(modes, (candidate) => {
+        if (recent.length === 2 && recent.every((item) => item === candidate)) return 0;
+        const balance = 1 / (1 + used[candidate]);
+        return balance * (recent.at(-1) === candidate ? 0.45 : 1);
+      }, rng);
+      const selected = modes[index];
+      plan.push(selected);
+      used[selected] += 1;
+    }
+    return plan;
   }
 
-  function shuffle(items) {
+  function sessionModeForIndex(mode, index, questionModes = []) {
+    return questionModes[index] || (mode === "mix" || mode === "exam" ? null : mode);
+  }
+
+  function shuffle(items, rng = freshRandom) {
     const copy = items.slice();
     for (let i = copy.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(rng() * (i + 1));
       [copy[i], copy[j]] = [copy[j], copy[i]];
     }
     return copy;
   }
 
-  function buildMcOptions(cards, currentCard, direction) {
+  function buildMcOptions(cards, currentCard, direction, rng = freshRandom) {
     const correct = directionPair(currentCard, direction, cards).answer;
     const candidates = shuffle(
       cards
         .filter((card) => card.id !== currentCard.id)
         .map((card) => directionPair(card, direction, cards).answer)
         .filter((answer, index, values) => answer !== correct && values.indexOf(answer) === index),
+      rng,
     );
-    return shuffle([correct, ...candidates.slice(0, 3)]);
+    return shuffle([correct, ...candidates.slice(0, 3)], rng);
   }
 
   function evaluateTypedAnswer(input, truth, allowExtraWords = false) {
@@ -339,12 +443,38 @@ const AppCore = (() => {
     return state;
   }
 
-  function createSession(cards, options, contextCards = cards) {
+  function createSession(cards, options, contextCards = cards, rng = freshRandom) {
     return {
       cards: cards.slice(), contextCards: contextCards.slice(),
       mode: options.mode, direction: options.direction,
+      questionModes: createModePlan(options.mode, cards.length, rng),
+      rng, isExam: options.mode === "exam", scheduleReviews: options.scheduleReviews === true && options.mode !== "exam",
+      reviewCounts: {}, initialCount: cards.length,
       index: 0, graded: false, correct: 0, wrong: 0, streak: 0, bestStreak: 0, answered: [],
     };
+  }
+
+  function scheduleWrongReview(session, card) {
+    if (!session.scheduleReviews || (session.reviewCounts[card.id] || 0) >= 2) return null;
+    const remaining = session.cards.length - session.index - 1;
+    if (remaining < 3) return null;
+    const possibleGaps = [];
+    for (let gap = 3; gap <= Math.min(7, remaining); gap += 1) {
+      const insertAt = session.index + gap + 1;
+      const before = session.cards[insertAt - 1];
+      const after = session.cards[insertAt];
+      if (before?.prompt !== card.prompt && after?.prompt !== card.prompt) possibleGaps.push(gap);
+    }
+    const gap = possibleGaps.length > 0
+      ? possibleGaps[randomInt(0, possibleGaps.length - 1, session.rng)]
+      : randomInt(3, Math.min(7, remaining), session.rng);
+    const insertAt = session.index + gap + 1;
+    session.cards.splice(insertAt, 0, card);
+    const alternatives = ["cards", "mc", "type"].filter((mode) => mode !== session.questionModes[session.index]);
+    const mode = alternatives[randomInt(0, alternatives.length - 1, session.rng)];
+    session.questionModes.splice(insertAt, 0, mode);
+    session.reviewCounts[card.id] = (session.reviewCounts[card.id] || 0) + 1;
+    return gap;
   }
 
   function gradeSession(progress, session, correct, response = {}, timestamp = Date.now()) {
@@ -354,7 +484,7 @@ const AppCore = (() => {
     const result = {
       card: { ...card }, question: pair.question, expectedAnswer: pair.answer,
       submittedAnswer: String(response.answer ?? ""),
-      source: response.source || "self", mode: sessionModeForIndex(session.mode, session.index),
+      source: response.source || "self", mode: sessionModeForIndex(session.mode, session.index, session.questionModes),
       direction: session.direction, correct, answeredAt: timestamp,
     };
     applyGrade(progress, card, correct, timestamp);
@@ -364,12 +494,39 @@ const AppCore = (() => {
     session.wrong += correct ? 0 : 1;
     session.streak = correct ? session.streak + 1 : 0;
     session.bestStreak = Math.max(session.bestStreak, session.streak);
+    if (!correct) {
+      const gap = scheduleWrongReview(session, card);
+      result.reviewScheduled = gap != null;
+      if (gap != null) result.reviewAfter = gap;
+    }
     return result;
   }
 
-  function retryCards(summary, cards) {
-    const ids = new Set((summary?.results || []).filter((item) => !item.correct).map((item) => item.card.id));
-    return cards.filter((card) => ids.has(card.id));
+  function unresolvedMistakeIds(summary) {
+    const states = new Map();
+    (summary?.results || []).forEach((item) => {
+      const current = states.get(item.card.id) || { hadError: false, correctStreak: 0 };
+      if (item.correct) current.correctStreak += 1;
+      else {
+        current.hadError = true;
+        current.correctStreak = 0;
+      }
+      states.set(item.card.id, current);
+    });
+    return new Set([...states].filter(([, value]) => value.hadError && value.correctStreak < 2).map(([id]) => id));
+  }
+
+  function retryCards(summary, cards, rng = freshRandom) {
+    const ids = unresolvedMistakeIds(summary);
+    return shuffle(cards.filter((card) => ids.has(card.id)), rng);
+  }
+
+  function createLearningSession(cards, progress, options, timestamp = Date.now(), rng = freshRandom) {
+    const contextCards = options.contextCards || filterCards(cards, options.selectedDecks, options.cutoffYear);
+    const selected = options.retrySummary
+      ? retryCards(options.retrySummary, contextCards, rng)
+      : chooseCards(cards, progress, options, timestamp, rng);
+    return createSession(selected, { ...options, scheduleReviews: options.scheduleReviews !== false }, contextCards, rng);
   }
 
   function buildSummary(session) {
@@ -418,14 +575,24 @@ const AppCore = (() => {
     clampSessionSize,
     formatCardCount,
     chooseCards,
+    adaptiveWeight,
+    weightedRandomOrder,
+    randomExamOrder,
     directionPair,
+    createSeededRandom,
+    freshRandom,
+    randomInt,
+    createModePlan,
     sessionModeForIndex,
     buildMcOptions,
     shuffle,
     evaluateTypedAnswer,
     applyGrade,
     createSession,
+    createLearningSession,
+    scheduleWrongReview,
     gradeSession,
+    unresolvedMistakeIds,
     retryCards,
     buildSummary,
   };
@@ -488,6 +655,13 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
       els.toggleAllDecksBtn, els.startBtn, ...$$("#deckFilter .deckChip")].forEach((control) => {
       control.disabled = active;
     });
+    if (!active) syncModeControls();
+  }
+
+  function syncModeControls() {
+    const exam = els.modeSelect.value === "exam";
+    els.focusSelect.disabled = exam;
+    els.sessionSize.disabled = exam;
   }
 
   function updateTheme() {
@@ -505,6 +679,7 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
     els.focusSelect.value = state.profile.focus;
     els.sessionSize.value = String(AppCore.clampSessionSize(state.profile.sessionSize));
     els.cutoffSelect.value = String(state.profile.cutoffYear);
+    syncModeControls();
   }
 
   function saveControls() {
@@ -585,7 +760,9 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
       segment.style.flexGrow = String(count);
       els.masteryTrack.appendChild(segment);
     });
-    els.sessionHint.textContent = `${AppCore.formatCardCount(overview.total)} · ${AppCore.MODE_LABELS[els.modeSelect.value]} · ${AppCore.FOCUS_LABELS[els.focusSelect.value]}`;
+    els.sessionHint.textContent = els.modeSelect.value === "exam"
+      ? `${AppCore.formatCardCount(overview.total)} · jede Merkzahl genau einmal · vollständig zufällig`
+      : `${AppCore.formatCardCount(overview.total)} · ${AppCore.MODE_LABELS[els.modeSelect.value]} · ${AppCore.FOCUS_LABELS[els.focusSelect.value]}`;
   }
 
   function updateSessionStats() {
@@ -627,17 +804,18 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
     }
     const card = session.cards[session.index];
     const pair = AppCore.directionPair(card, session.direction, session.contextCards);
-    const currentMode = AppCore.sessionModeForIndex(session.mode, session.index);
+    const currentMode = AppCore.sessionModeForIndex(session.mode, session.index, session.questionModes);
     const meta = AppCore.getCardMeta(card, state.progress);
     session.currentMode = currentMode;
 
     els.welcomeCard.hidden = true;
     els.emptyTraining.hidden = true;
     els.playCard.hidden = false;
-    els.playTitle.textContent = session.isRetry ? "Deine zweite Chance" : "Schritt für Schritt.";
+    els.playTitle.textContent = session.isRetry ? "Deine zweite Chance" : session.isExam ? "Prüfungsrunde" : "Schritt für Schritt.";
     els.qIndex.textContent = `${session.index + 1} / ${session.cards.length}`;
     els.qModeLabel.textContent = AppCore.MODE_LABELS[currentMode];
-    const learningState = meta.isNew ? "Neu" : meta.isWeak ? "Unsicher" : meta.due ? "Fällig" : "Wiederholung";
+    const learningState = session.isExam ? "Prüfung"
+      : meta.isNew ? "Neu" : meta.isWeak ? "Unsicher" : meta.due ? "Fällig" : "Wiederholung";
     const multipleAnswers = pair.answerCount > 1 ? ` · ${pair.answerCount} Ereignisse` : "";
     els.questionContext.textContent = `${card.deck} · ${learningState}${multipleAnswers}`;
     els.question.textContent = pair.question;
@@ -666,7 +844,7 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
   function renderMc(card, pair) {
     els.mcArea.hidden = false;
     const activeCards = state.session.contextCards;
-    AppCore.buildMcOptions(activeCards, card, state.session.direction).forEach((option) => {
+    AppCore.buildMcOptions(activeCards, card, state.session.direction, state.session.rng).forEach((option) => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "optionButton";
@@ -736,7 +914,9 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
     const nextDays = Math.round((meta.state.due - meta.state.lastSeen) / 86400000);
     els.feedbackDetail.textContent = correct
       ? `${label} · ${Math.min(5, meta.state.box)}/5 Lernstufen${meta.isWeak ? " · Noch einmal richtig, dann nicht mehr unsicher." : ` · Wiederholung in ${nextDays} ${nextDays === 1 ? "Tag" : "Tagen"}.`}`
-      : "Als falsch gespeichert. Diese Karte ist jetzt fällig und kommt in deine Fehler-Runde.";
+      : result.reviewScheduled
+        ? "Als falsch gespeichert. Die Karte wird später mit einer neuen Aufgabenvariante zufällig eingemischt."
+        : "Als falsch gespeichert. Diese Karte ist jetzt fällig und kommt in deine nächste Fehler-Runde.";
     els.answerFeedback.hidden = false;
     els.nextBtn.focus();
   }
@@ -744,13 +924,19 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
   function startSession(retry = false) {
     saveControls();
     els.summaryCard.hidden = true;
-    const cards = retry ? AppCore.retryCards(state.displayedSummary, state.cards) : AppCore.chooseCards(state.cards, state.progress, {
-      focus: state.profile.focus,
+    const baseOptions = retry ? {
+      ...state.profile,
+      mode: state.displayedSummary?.mode === "exam" ? "mix" : state.displayedSummary?.mode || "mix",
+      direction: state.displayedSummary?.direction || state.profile.direction,
+      retrySummary: state.displayedSummary,
+      contextCards: state.cards,
+      scheduleReviews: true,
+    } : {
+      ...state.profile,
       count: state.profile.sessionSize,
-      selectedDecks: state.profile.selectedDecks,
-      cutoffYear: state.profile.cutoffYear,
-    });
-    if (cards.length === 0) {
+    };
+    const session = AppCore.createLearningSession(state.cards, state.progress, baseOptions);
+    if (session.cards.length === 0) {
       state.session = null;
       setPracticeActive(false);
       els.welcomeCard.hidden = true;
@@ -760,10 +946,7 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
       els.emptyTrainingText.textContent = `Im gewählten Zeitraum gibt es gerade keine Karten für „${label}“. Wähle einen anderen Fokus oder erweitere den Zeitraum.`;
       return;
     }
-    const options = retry ? state.displayedSummary : state.profile;
-    // Freeze the question context: changing filters must never change an active answer.
-    const context = retry ? state.cards : AppCore.filterCards(state.cards, state.profile.selectedDecks, state.profile.cutoffYear);
-    state.session = AppCore.createSession(cards, options, context);
+    state.session = session;
     state.session.isRetry = retry;
     setPracticeActive(true);
     renderCurrentQuestion();
@@ -939,7 +1122,7 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
     els.retryBtn.addEventListener("click", () => startSession(true));
     els.onlyMistakes.addEventListener("change", renderResults);
     els.toggleAllDecksBtn.addEventListener("click", toggleAllDecks);
-    els.modeSelect.addEventListener("change", () => { saveControls(); updateDashboard(); });
+    els.modeSelect.addEventListener("change", () => { saveControls(); syncModeControls(); updateDashboard(); });
     els.focusSelect.addEventListener("change", () => { saveControls(); updateDashboard(); });
     els.dirSelect.addEventListener("change", saveControls);
     els.cutoffSelect.addEventListener("change", () => { saveControls(); updateDashboard(); });

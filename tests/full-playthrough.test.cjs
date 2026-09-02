@@ -71,12 +71,13 @@ test("Multiple Choice bietet bei jeder Merkzahl und Richtung genau eine richtige
   }
 });
 
-test("Mix-Modus wechselt für den ganzen Datensatz lückenlos durch alle Fragetypen", () => {
-  const modes = cards.map((_, index) => AppCore.sessionModeForIndex("mix", index));
-  assert.deepEqual(modes.slice(0, 6), ["cards", "mc", "type", "cards", "mc", "type"]);
-  assert.equal(modes.filter((mode) => mode === "cards").length, 19);
-  assert.equal(modes.filter((mode) => mode === "mc").length, 19);
-  assert.equal(modes.filter((mode) => mode === "type").length, 18);
+test("Mix-Modus verteilt alle Fragetypen zufällig statt in einer festen Rotation", () => {
+  const modes = AppCore.createModePlan("mix", cards.length, AppCore.createSeededRandom(17));
+  const second = AppCore.createModePlan("mix", cards.length, AppCore.createSeededRandom(18));
+  assert.notDeepEqual(modes, second);
+  assert.notDeepEqual(modes.slice(0, 6), ["cards", "mc", "type", "cards", "mc", "type"]);
+  assert.deepEqual(new Set(modes), new Set(["cards", "mc", "type"]));
+  assert.ok(!modes.some((mode, index) => mode === modes[index + 1] && mode === modes[index + 2]));
 });
 
 test("eine komplette fehlerfreie Runde verarbeitet alle 56 Merkzahlen", () => {
