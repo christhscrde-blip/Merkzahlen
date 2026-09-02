@@ -23,7 +23,7 @@ function worker(online = true) {
         addAll: async (assets) => { precached = assets; },
         put: async (request, response) => { writes.push(request.url); cached.set(request.url, response); },
       }),
-      keys: async () => ["merkzahlen-v4", "merkzahlen-v7", "another-app"],
+      keys: async () => ["merkzahlen-v4", "merkzahlen-v8", "another-app"],
       delete: async (name) => { removed.push(name); },
       match: async (request) => cached.get(typeof request === "string" ? request : request.url),
     },
@@ -44,7 +44,7 @@ function worker(online = true) {
 test("PWA installiert zusammenpassende versionierte Dateien mit frischem HTTP-Abruf", async () => {
   const sw = worker();
   await sw.trigger("install");
-  for (const path of ["app.js?v=7", "styles.css?v=7", "data.json"]) assert.ok(sw.precached.some((request) => request.url === base + path));
+  for (const path of ["app.js?v=8", "styles.css?v=8", "data.json"]) assert.ok(sw.precached.some((request) => request.url === base + path));
   assert.ok(sw.precached.every((request) => request.cache === "reload"));
 });
 
@@ -56,7 +56,7 @@ test("PWA räumt nur eigene ältere Caches auf", async () => {
 
 test("PWA bevorzugt neue Online-Antworten und aktualisiert den Offline-Cache", async () => {
   const sw = worker();
-  const request = { url: base + "app.js?v=7", method: "GET", mode: "cors" };
+  const request = { url: base + "app.js?v=8", method: "GET", mode: "cors" };
   sw.cached.set(request.url, new Response("old"));
   const response = await sw.trigger("fetch", request);
   assert.equal(await response.text(), "fresh");
@@ -67,7 +67,7 @@ test("PWA bevorzugt neue Online-Antworten und aktualisiert den Offline-Cache", a
 
 test("PWA liefert offline versionierte Dateien und den Navigation-Fallback", async () => {
   const sw = worker(false);
-  const request = { url: base + "app.js?v=7", method: "GET", mode: "cors" };
+  const request = { url: base + "app.js?v=8", method: "GET", mode: "cors" };
   sw.cached.set(request.url, new Response("offline app"));
   sw.cached.set("./index.html", new Response("offline page"));
   assert.equal(await (await sw.trigger("fetch", request)).text(), "offline app");
