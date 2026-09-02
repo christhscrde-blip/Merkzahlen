@@ -137,10 +137,10 @@ summary:focus-visible {
 
 .overview {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1px;
   overflow: hidden;
-  margin-bottom: 18px;
+  margin-bottom: 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--line);
@@ -173,16 +173,13 @@ summary:focus-visible {
 }
 
 .accuracy {
-  display: grid;
-  min-width: 160px;
-  place-items: center;
-  padding: 14px;
-  text-align: center;
+  padding-top: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .workspace {
   display: grid;
-  grid-template-columns: 350px minmax(0, 1fr);
+  grid-template-columns: 310px minmax(0, 1fr);
   gap: 18px;
   align-items: start;
 }
@@ -542,8 +539,9 @@ input {
   max-width: 16ch;
   margin-top: 24px;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(2.8rem, 8vw, 6.6rem);
-  line-height: 0.98;
+  font-size: clamp(2.6rem, 7vw, 5.5rem);
+  line-height: 1.08;
+  overflow-wrap: anywhere;
   letter-spacing: -0.055em;
 }
 
@@ -589,7 +587,7 @@ input {
 
 .typeArea {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 9px;
   margin-top: 30px;
 }
@@ -708,6 +706,63 @@ input {
   display: none !important;
 }
 
+.learningOverview {
+  padding: 20px 24px 16px;
+  margin-bottom: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+}
+.overviewHead, .resultHead { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.overviewHead p { margin-bottom: 10px; }
+.dueLabel { color: var(--muted); font-size: .875rem; text-align: right; }
+.masteryTrack { display: flex; height: 6px; overflow: hidden; border-radius: 9px; background: var(--line); }
+.masterySegment { flex-basis: 0; transition: flex-grow 220ms ease; }
+.masterySegment.new { background: var(--line); }
+.masterySegment.learning { background: var(--accent); }
+.masterySegment.weak { background: var(--danger); }
+.masterySegment.mastered { background: var(--positive); }
+.lastAnswer { margin: 5px 0 0; font-size: .875rem; min-height: 1.5em; }
+.lastAnswer[data-result="correct"] { color: var(--positive); }
+.lastAnswer[data-result="wrong"] { color: var(--danger); }
+.progressHelp { margin-top: 8px; color: var(--muted); font-size: .875rem; }
+.progressHelp summary { cursor: pointer; }
+.progressHelp p { max-width: 95ch; margin: 10px 0 0; }
+.saveWarning { padding: 16px; border: 1px solid var(--danger); border-radius: 12px; }
+.roundTrack { padding: 0 28px 18px; }
+.answerTrack { display: flex; gap: 3px; min-height: 12px; }
+.answerSegment { flex: 1; min-width: 0; height: 12px; border-radius: 4px; background: var(--line); font: bold 10px/12px sans-serif; text-align: center; overflow: hidden; }
+.answerSegment.isCorrect { background: var(--positive); color: var(--bg); }
+.answerSegment.isWrong { background: var(--danger); color: var(--bg); }
+.badge.isHot { border-color: var(--positive); color: var(--positive); background: color-mix(in srgb, var(--positive) 8%, var(--panel)); }
+.modeHint { margin: 20px 0 0; color: var(--muted); font-size: .875rem; }
+.question.isLong { max-width: 30ch; font-size: clamp(1.6rem, 3.4vw, 2.6rem); line-height: 1.22; letter-spacing: -.025em; }
+.answerFeedback { padding: 16px 18px; margin-top: 24px; border: 1px solid var(--positive); border-radius: var(--radius-md); background: color-mix(in srgb, var(--positive) 9%, var(--panel)); animation: feedbackIn 180ms ease-out; }
+.answerFeedback strong { color: var(--positive); }
+.answerFeedback p { margin: 5px 0 0; font-size: .875rem; }
+.answerFeedback[data-result="wrong"] { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 9%, var(--panel)); }
+.answerFeedback[data-result="wrong"] strong { color: var(--danger); }
+.typeArea input[aria-invalid="true"] { border-color: var(--danger); }
+.typeArea input:disabled { opacity: 1; color: var(--text); }
+.resultHead { margin-top: 30px; padding-top: 24px; border-top: 1px solid var(--line); }
+.resultHead h3 { margin: 0; }
+.resultFilter { display: flex; align-items: center; gap: 8px; font-size: .875rem; white-space: nowrap; }
+.resultFilter input { width: 18px; height: 18px; accent-color: var(--accent); }
+.summaryCounts { margin: 18px 0 0; font-size: 1.1rem; font-weight: 600; }
+.summaryResults { list-style: none; padding: 0; margin: 18px 0 0; display: grid; gap: 12px; }
+.resultItem { padding: 16px 18px; border: 1px solid var(--line); border-left: 3px solid var(--positive); border-radius: 10px; overflow-wrap: anywhere; }
+.resultItem.isWrong { border-left-color: var(--danger); }
+.resultItem > strong { font-size: .875rem; color: var(--positive); }
+.resultItem.isWrong > strong { color: var(--danger); }
+.resultItem p { margin: 6px 0 0; color: var(--muted); font-size: .875rem; }
+.resultItem .resultQuestion { color: var(--text); font-size: 1.1rem; font-weight: 600; }
+.welcomeCard .btn { margin-top: 24px; }
+.field > span, .inlineHead > span, .utilityLabel, .btnSmall, .deckChip, .sessionStats, .badge { font-size: .875rem; }
+.btn, .optionButton { transition: transform 120ms ease, border-color 120ms ease; }
+.btn:active:not(:disabled), .optionButton:active:not(:disabled) { transform: translateY(1px); }
+.learning, .setup, .typeArea > input { min-width: 0; }
+@keyframes feedbackIn { from { opacity: .4; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
 @media (max-width: 900px) {
   .overview {
     grid-template-columns: repeat(4, 1fr);
@@ -726,6 +781,8 @@ input {
     position: static;
   }
 
+  .isPracticing .learning { grid-row: 1; }
+
   .welcomeCard,
   .emptyCard {
     min-height: 420px;
@@ -737,6 +794,12 @@ input {
     width: min(100% - 20px, 1180px);
     padding-top: 14px;
   }
+
+  .learningOverview { padding: 16px; }
+  .overviewHead { align-items: flex-start; }
+  .lastAnswer { font-size: .8rem; }
+  .answerTrack { gap: 2px; flex-wrap: wrap; }
+  .answerSegment { min-width: 8px; }
 
   .overview {
     grid-template-columns: repeat(2, 1fr);
@@ -786,6 +849,8 @@ input {
     grid-template-columns: 1fr;
   }
 
+  .actionRow .btn { flex: 1 1 auto; }
+
   .summaryCard,
   .setup,
   .emptyCard {
@@ -799,5 +864,6 @@ input {
   *::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
   }
 }
