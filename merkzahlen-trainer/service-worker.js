@@ -1,9 +1,11 @@
-const CACHE = "merkzahlen-v5";
+const CACHE = "merkzahlen-v7";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
+  "./styles.css?v=7",
+  "./app.js?v=7",
   "./data.json",
   "./manifest.json",
   "./icon-192.png",
@@ -12,14 +14,14 @@ const ASSETS = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting()),
+    caches.open(CACHE).then((cache) => cache.addAll(ASSETS.map((url) => new Request(url, { cache: "reload" })))).then(() => self.skipWaiting()),
   );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.map((key) => (key === CACHE ? null : caches.delete(key)))),
+      Promise.all(keys.map((key) => (key.startsWith("merkzahlen-") && key !== CACHE ? caches.delete(key) : null))),
     ).then(() => self.clients.claim()),
   );
 });
@@ -29,7 +31,7 @@ self.addEventListener("fetch", (event) => {
   if (new URL(event.request.url).origin !== self.location.origin) return;
 
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, { cache: "no-cache" })
       .then((response) => {
         if (response.ok) {
           const copy = response.clone();
