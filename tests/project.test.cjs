@@ -38,9 +38,14 @@ test("aktualisiert den zugänglichen Rundenzähler dynamisch", () => {
 });
 
 test("lädt online frische PWA-Dateien und nutzt den Cache nur als Offline-Fallback", () => {
-  const networkRead = serviceWorker.indexOf("fetch(event.request)");
+  const networkRead = serviceWorker.indexOf("fetch(event.request,");
   const cacheFallback = serviceWorker.indexOf("const cached = await caches.match(event.request)");
   assert.ok(networkRead >= 0, "Netzwerkabruf fehlt");
   assert.ok(cacheFallback > networkRead, "Cache darf den Netzwerkabruf online nicht überholen");
-  assert.match(serviceWorker, /const CACHE = "merkzahlen-v5"/);
+  assert.match(serviceWorker, /const CACHE = "merkzahlen-v7"/);
+  assert.match(serviceWorker, /cache: "no-cache"/);
+  for (const asset of ["app.js?v=7", "styles.css?v=7"]) {
+    assert.ok(html.includes(asset), `${asset}: HTML-Version fehlt`);
+    assert.ok(serviceWorker.includes(asset), `${asset}: Offline-Version fehlt`);
+  }
 });

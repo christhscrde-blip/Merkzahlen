@@ -461,6 +461,7 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
     answerTrack: $("#answerTrack"), roundLabel: $("#roundLabel"), modeHint: $("#modeHint"),
     answerFeedback: $("#answerFeedback"), feedbackTitle: $("#feedbackTitle"), feedbackDetail: $("#feedbackDetail"),
     summaryTitle: $("#summaryTitle"), summaryCounts: $("#summaryCounts"), summaryEmpty: $("#summaryEmpty"),
+    summaryContext: $("#summaryContext"),
     onlyMistakes: $("#onlyMistakes"), retryBtn: $("#retryBtn"), anotherRoundBtn: $("#anotherRoundBtn"),
     quickStartBtn: $("#quickStartBtn"),
     finishBtn: $("#finishBtn"),
@@ -791,8 +792,9 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
     els.summaryTitle.focus({ preventScroll: true });
   }
 
-  function renderSummary(summary) {
+  function renderSummary(summary, restored = false) {
     state.displayedSummary = summary;
+    els.summaryContext.textContent = `${restored ? "Letzte abgeschlossene Runde" : "Runde beendet"} · ${AppCore.MODE_LABELS[summary.mode]}`;
     els.onlyMistakes.checked = false;
     els.summaryTitle.textContent = summary.total === 0 ? "Noch keine Antwort bewertet."
       : summary.wrong === 0 ? "Alles richtig. Stark!" : "Runde geschafft.";
@@ -842,7 +844,7 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
   function restoreLastSummary() {
     // Legacy summaries contain no question/input log and cannot be reconstructed honestly.
     if (state.profile.lastSummary?.schemaVersion !== 2 || !Array.isArray(state.profile.lastSummary.results)) return;
-    renderSummary(state.profile.lastSummary);
+    renderSummary(state.profile.lastSummary, true);
     els.welcomeCard.hidden = true;
     els.summaryCard.hidden = false;
   }
