@@ -26,7 +26,7 @@ const AppCore = (() => {
     mode: "mix",
     direction: "year2event",
     focus: "mixed",
-    sessionSize: 16,
+    sessionSize: 10,
     cutoffYear: 1990,
     lastSummary: null,
   };
@@ -68,7 +68,7 @@ const AppCore = (() => {
   }
 
   function saveProgress(progress) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+    return saveJson(STORAGE_KEY, progress);
   }
 
   function loadProfile() {
@@ -85,7 +85,16 @@ const AppCore = (() => {
   }
 
   function saveProfile(profile) {
-    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+    return saveJson(PROFILE_KEY, profile);
+  }
+
+  function saveJson(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function ensureCardState(progress, cardId) {
@@ -99,6 +108,18 @@ const AppCore = (() => {
       lastWrongAt: 0,
     };
     progress[cardId] = { ...fallback, ...(progress[cardId] || {}) };
+    const state = progress[cardId];
+    // Older backups did not record consecutive answers. Preserve their counters,
+    // but infer only what the last answer and the old box actually establish.
+    if (!Number.isFinite(state.correctStreak)) {
+      state.correctStreak = state.wrong === 0 ? state.box
+        : state.lastWrongAt >= state.lastSeen ? 0 : Math.min(2, state.box);
+    }
+    // Repair the former `0 || 60 days` scheduling bug for legacy failures.
+    if (state.seen > 0 && state.wrong > 0 && state.correctStreak === 0) {
+      state.box = 0;
+      state.due = Math.min(state.due, state.lastSeen);
+    }
     return progress[cardId];
   }
 
@@ -138,11 +159,14 @@ const AppCore = (() => {
   function getCardMeta(card, progress, timestamp = Date.now()) {
     const state = ensureCardState(progress, card.id);
     const isNew = state.seen === 0;
+    const isWeak = !isNew && state.wrong > 0 && state.correctStreak < 2;
+    const mastered = !isNew && !isWeak && state.box >= 5;
     return {
       due: !isNew && state.due <= timestamp,
       isNew,
-      isWeak: state.wrong > state.correct || (state.wrong > 0 && timestamp - state.lastWrongAt < 14 * DAY),
-      mastered: state.box >= 5,
+      isWeak,
+      mastered,
+      learning: !isNew && !isWeak && !mastered,
       state,
     };
   }
@@ -154,7 +178,10 @@ const AppCore = (() => {
       due: 0,
       newCount: 0,
       weak: 0,
+      learning: 0,
       mastered: 0,
+      correct: 0,
+      wrong: 0,
       accuracy: null,
     };
     let correct = 0;
@@ -166,17 +193,20 @@ const AppCore = (() => {
       if (meta.isNew) stats.newCount += 1;
       if (meta.isWeak) stats.weak += 1;
       if (meta.mastered) stats.mastered += 1;
+      if (meta.learning) stats.learning += 1;
       correct += meta.state.correct;
       attempts += meta.state.correct + meta.state.wrong;
     });
 
     if (attempts > 0) stats.accuracy = Math.round((correct / attempts) * 100);
+    stats.correct = correct;
+    stats.wrong = attempts - correct;
     return stats;
   }
 
   function clampSessionSize(value) {
     const parsed = Number.parseInt(value, 10);
-    if (!Number.isFinite(parsed)) return 16;
+    if (!Number.isFinite(parsed)) return 10;
     return Math.min(60, Math.max(5, parsed));
   }
 
@@ -255,21 +285,38 @@ const AppCore = (() => {
     return shuffle([correct, ...candidates.slice(0, 3)]);
   }
 
-  function evaluateTypedAnswer(input, truth) {
+  function evaluateTypedAnswer(input, truth, allowExtraWords = false) {
     const normalizedInput = normalizeText(input);
     const normalizedTruth = normalizeText(truth);
     if (!normalizedInput || !normalizedTruth) return false;
     if (normalizedInput === normalizedTruth) return true;
     if (isDateLikeAnswer(truth)) {
-      return normalizedInput.replace(/\s/g, "") === normalizedTruth.replace(/\s/g, "");
+      return canonicalDate(input) === canonicalDate(truth);
     }
+
+    // Every event of a shared year must be present, not just 70% of the combined text.
+    if (truth.includes(";") && !truth.split(";").every((part) => evaluateTypedAnswer(input, part, true))) return false;
+    if (/\b(nicht|kein|keine|keinen|keiner|keines)\b/.test(normalizedInput)) return false;
 
     const stopwords = new Set(["der", "die", "das", "den", "dem", "des", "und", "von", "im", "in", "zu", "zur", "zum"]);
     const wordForm = (value) => value.replace(/[./-]/g, " ").replace(/\s+/g, " ").trim();
     const truthParts = wordForm(normalizedTruth).split(" ").filter((part) => part.length > 1 && !stopwords.has(part));
     const inputParts = new Set(wordForm(normalizedInput).split(" ").filter((part) => part.length > 1 && !stopwords.has(part)));
     const overlap = truthParts.filter((part) => inputParts.has(part)).length;
-    return truthParts.length > 0 && overlap >= Math.ceil(truthParts.length * 0.7);
+    const uniqueTruth = new Set(truthParts);
+    const precision = [...inputParts].filter((part) => uniqueTruth.has(part)).length / inputParts.size;
+    const identifiers = (value) => wordForm(value).split(" ").filter((part) => /^\d+$|^(ii|iii|iv|vi|vii|viii|ix|xi|xii|xiii|xiv|xv|xvi)$/.test(part));
+    if (!identifiers(normalizedTruth).every((part) => identifiers(normalizedInput).includes(part))) return false;
+    return truthParts.length > 0 && overlap >= Math.ceil(truthParts.length * 0.7) && (allowExtraWords || precision >= 0.6);
+  }
+
+  function canonicalDate(value) {
+    const months = ["januar", "februar", "marz", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "dezember"];
+    let date = normalizeText(value);
+    months.forEach((month, index) => {
+      date = date.replace(new RegExp(month, "g"), `${index + 1}.`);
+    });
+    return date.replace(/\s/g, "").replace(/\d+/g, (number) => String(Number(number)));
   }
 
   function applyGrade(progress, card, correct, timestamp = Date.now()) {
@@ -279,30 +326,75 @@ const AppCore = (() => {
 
     if (correct) {
       state.correct += 1;
+      state.correctStreak += 1;
       state.box = Math.min(6, state.box + 1);
     } else {
       state.wrong += 1;
       state.lastWrongAt = timestamp;
-      state.box = Math.max(0, state.box - 1);
+      state.correctStreak = 0;
+      state.box = 0;
     }
 
-    state.due = timestamp + (INTERVALS[state.box] || 60 * DAY);
+    state.due = timestamp + (INTERVALS[state.box] ?? 60 * DAY);
     return state;
   }
 
+  function createSession(cards, options, contextCards = cards) {
+    return {
+      cards: cards.slice(), contextCards: contextCards.slice(),
+      mode: options.mode, direction: options.direction,
+      index: 0, graded: false, correct: 0, wrong: 0, streak: 0, bestStreak: 0, answered: [],
+    };
+  }
+
+  function gradeSession(progress, session, correct, response = {}, timestamp = Date.now()) {
+    if (!session || session.graded || !session.cards[session.index] || typeof correct !== "boolean") return null;
+    const card = session.cards[session.index];
+    const pair = directionPair(card, session.direction, session.contextCards);
+    const result = {
+      card: { ...card }, question: pair.question, expectedAnswer: pair.answer,
+      submittedAnswer: String(response.answer ?? ""),
+      source: response.source || "self", mode: sessionModeForIndex(session.mode, session.index),
+      direction: session.direction, correct, answeredAt: timestamp,
+    };
+    applyGrade(progress, card, correct, timestamp);
+    session.answered.push(result);
+    session.graded = true;
+    session.correct += correct ? 1 : 0;
+    session.wrong += correct ? 0 : 1;
+    session.streak = correct ? session.streak + 1 : 0;
+    session.bestStreak = Math.max(session.bestStreak, session.streak);
+    return result;
+  }
+
+  function retryCards(summary, cards) {
+    const ids = new Set((summary?.results || []).filter((item) => !item.correct).map((item) => item.card.id));
+    return cards.filter((card) => ids.has(card.id));
+  }
+
   function buildSummary(session) {
-    const total = session.correct + session.wrong;
-    const accuracy = total ? Math.round((session.correct / total) * 100) : 0;
+    // The answer log is the sole source of truth, also after reload or filter changes.
+    const results = session.answered.map((item) => ({ ...item, card: { ...item.card } }));
+    const total = results.length;
+    const correct = results.filter((item) => item.correct).length;
+    const wrong = total - correct;
+    let streak = 0;
+    let bestStreak = 0;
+    results.forEach((item) => {
+      streak = item.correct ? streak + 1 : 0;
+      bestStreak = Math.max(bestStreak, streak);
+    });
+    const accuracy = total ? Math.round((correct / total) * 100) : 0;
     const recommendation = accuracy >= 85
       ? "Sehr stabil. Als Nächstes lohnt sich die Gegenrichtung."
       : accuracy >= 60
         ? "Solide Basis. Wiederhole vor allem die markierten Schwachstellen."
         : "Nimm eine kürzere Runde und trainiere die unsicheren Karten noch einmal.";
-    const weakCards = session.answered
+    const weakCards = results
       .filter((item) => !item.correct)
-      .slice(-5)
       .map((item) => `${item.card.prompt} – ${item.card.answer}`);
-    return { accuracy, bestStreak: session.bestStreak, total, recommendation, weakCards };
+    return { schemaVersion: 2, accuracy, correct, wrong, bestStreak, total, recommendation, weakCards,
+      mode: session.mode, direction: session.direction, completedAt: Date.now(), results };
   }
 
   return {
@@ -332,6 +424,9 @@ const AppCore = (() => {
     shuffle,
     evaluateTypedAnswer,
     applyGrade,
+    createSession,
+    gradeSession,
+    retryCards,
     buildSummary,
   };
 })();
@@ -357,10 +452,18 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
     sWrong: $("#sWrong"), sAcc: $("#sAcc"), summaryCard: $("#summaryCard"),
     summaryAccuracy: $("#summaryAccuracy"), summaryBestStreak: $("#summaryBestStreak"),
     summaryTotal: $("#summaryTotal"), summaryRecommendation: $("#summaryRecommendation"),
-    summaryWeakList: $("#summaryWeakList"), resetDialog: $("#resetDialog"),
+    summaryResults: $("#summaryResults"), resetDialog: $("#resetDialog"),
     cancelResetBtn: $("#cancelResetBtn"), confirmResetBtn: $("#confirmResetBtn"),
     exportBtn: $("#exportBtn"), importBtn: $("#importBtn"), importInput: $("#importInput"),
     dataStatus: $("#dataStatus"), bootError: $("#bootError"),
+    statLearning: $("#statLearning"), catalogProgress: $("#catalogProgress"),
+    masteryTrack: $("#masteryTrack"), lastAnswer: $("#lastAnswer"), saveWarning: $("#saveWarning"),
+    answerTrack: $("#answerTrack"), roundLabel: $("#roundLabel"), modeHint: $("#modeHint"),
+    answerFeedback: $("#answerFeedback"), feedbackTitle: $("#feedbackTitle"), feedbackDetail: $("#feedbackDetail"),
+    summaryTitle: $("#summaryTitle"), summaryCounts: $("#summaryCounts"), summaryEmpty: $("#summaryEmpty"),
+    onlyMistakes: $("#onlyMistakes"), retryBtn: $("#retryBtn"), anotherRoundBtn: $("#anotherRoundBtn"),
+    quickStartBtn: $("#quickStartBtn"),
+    finishBtn: $("#finishBtn"),
   };
 
   const state = {
@@ -369,7 +472,22 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
     profile: AppCore.loadProfile(),
     session: null,
     installPrompt: null,
+    displayedSummary: null,
   };
+
+  function persist() {
+    const progressSaved = AppCore.saveProgress(state.progress);
+    const profileSaved = AppCore.saveProfile(state.profile);
+    els.saveWarning.hidden = progressSaved && profileSaved;
+  }
+
+  function setPracticeActive(active) {
+    document.body.classList.toggle("isPracticing", active);
+    [els.modeSelect, els.dirSelect, els.focusSelect, els.sessionSize, els.cutoffSelect,
+      els.toggleAllDecksBtn, els.startBtn, ...$$("#deckFilter .deckChip")].forEach((control) => {
+      control.disabled = active;
+    });
+  }
 
   function updateTheme() {
     document.body.dataset.theme = state.profile.theme;
@@ -454,8 +572,18 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
     els.statDue.textContent = String(overview.due);
     els.statNew.textContent = String(overview.newCount);
     els.statWeak.textContent = String(overview.weak);
+    els.statLearning.textContent = String(overview.learning);
     els.statMastered.textContent = String(overview.mastered);
-    els.statAccuracy.textContent = overview.accuracy == null ? "Noch keine Antworten" : `${overview.accuracy}% Trefferquote`;
+    els.catalogProgress.textContent = `${overview.mastered} von ${overview.total} Merkzahlen beherrscht`;
+    els.statAccuracy.textContent = overview.accuracy == null ? "Noch keine bewerteten Antworten"
+      : `Gesamt: ${overview.correct} richtig · ${overview.wrong} falsch · ${overview.accuracy}% Trefferquote`;
+    els.masteryTrack.innerHTML = "";
+    [["new", overview.newCount], ["learning", overview.learning], ["weak", overview.weak], ["mastered", overview.mastered]].forEach(([kind, count]) => {
+      const segment = document.createElement("span");
+      segment.className = `masterySegment ${kind}`;
+      segment.style.flexGrow = String(count);
+      els.masteryTrack.appendChild(segment);
+    });
     els.sessionHint.textContent = `${AppCore.formatCardCount(overview.total)} · ${AppCore.MODE_LABELS[els.modeSelect.value]} · ${AppCore.FOCUS_LABELS[els.focusSelect.value]}`;
   }
 
@@ -466,6 +594,20 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
     els.sWrong.textContent = String(state.session.wrong);
     els.sAcc.textContent = total ? `${Math.round((state.session.correct / total) * 100)}%` : "–";
     els.qStreak.textContent = `Serie ${state.session.streak}`;
+    els.qStreak.classList.toggle("isHot", state.session.streak >= 3);
+    els.qProgress.value = total;
+    els.qProgress.max = state.session.cards.length;
+    els.qProgress.textContent = `${total} von ${state.session.cards.length} beantwortet`;
+    els.qProgress.setAttribute("aria-label", `Fortschritt: ${total} von ${state.session.cards.length} beantwortet, ${state.session.correct} richtig, ${state.session.wrong} falsch`);
+    els.roundLabel.textContent = els.qProgress.textContent;
+    els.answerTrack.innerHTML = "";
+    state.session.cards.forEach((_, index) => {
+      const result = state.session.answered[index];
+      const segment = document.createElement("span");
+      segment.className = `answerSegment ${result ? result.correct ? "isCorrect" : "isWrong" : ""}`;
+      segment.textContent = result ? result.correct ? "✓" : "×" : "";
+      els.answerTrack.appendChild(segment);
+    });
   }
 
   function setActionMode(mode) {
@@ -483,8 +625,7 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
       return;
     }
     const card = session.cards[session.index];
-    const activeCards = AppCore.filterCards(state.cards, state.profile.selectedDecks, state.profile.cutoffYear);
-    const pair = AppCore.directionPair(card, session.direction, activeCards);
+    const pair = AppCore.directionPair(card, session.direction, session.contextCards);
     const currentMode = AppCore.sessionModeForIndex(session.mode, session.index);
     const meta = AppCore.getCardMeta(card, state.progress);
     session.currentMode = currentMode;
@@ -492,26 +633,29 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
     els.welcomeCard.hidden = true;
     els.emptyTraining.hidden = true;
     els.playCard.hidden = false;
-    els.playTitle.textContent = `Lernrunde mit ${AppCore.formatCardCount(session.cards.length)}`;
+    els.playTitle.textContent = session.isRetry ? "Deine zweite Chance" : "Schritt für Schritt.";
     els.qIndex.textContent = `${session.index + 1} / ${session.cards.length}`;
     els.qModeLabel.textContent = AppCore.MODE_LABELS[currentMode];
-    els.qProgress.value = session.index + 1;
-    els.qProgress.max = session.cards.length;
-    els.qProgress.textContent = `${session.index + 1} von ${session.cards.length}`;
-    els.qProgress.setAttribute("aria-label", `Fortschritt: ${session.index + 1} von ${session.cards.length}`);
     const learningState = meta.isNew ? "Neu" : meta.isWeak ? "Unsicher" : meta.due ? "Fällig" : "Wiederholung";
     const multipleAnswers = pair.answerCount > 1 ? ` · ${pair.answerCount} Ereignisse` : "";
     els.questionContext.textContent = `${card.deck} · ${learningState}${multipleAnswers}`;
     els.question.textContent = pair.question;
+    els.question.classList.toggle("isLong", pair.question.length > 28);
     els.answer.textContent = pair.answer;
     els.answer.hidden = true;
+    els.answerFeedback.hidden = true;
+    els.typeInput.removeAttribute("aria-invalid");
+    els.modeHint.textContent = currentMode === "cards" ? "Erst selbst erinnern, dann aufdecken und ehrlich bewerten."
+      : currentMode === "type" ? `${pair.answerCount > 1 ? "Nenne beide Ereignisse. " : ""}Tippe deine Antwort. „Nicht gewusst“ zählt als falsch.`
+      : "Wähle die passende Antwort. Eine Auswahl zählt sofort.";
     els.mcArea.hidden = true;
     els.mcArea.innerHTML = "";
     els.typeArea.hidden = true;
     els.typeInput.value = "";
     els.typeInput.disabled = false;
     els.checkBtn.disabled = false;
-    els.revealBtn.textContent = currentMode === "cards" ? "Antwort zeigen" : "Lösung anzeigen";
+    els.revealBtn.textContent = currentMode === "cards" ? "Antwort zeigen" : "Nicht gewusst · Lösung zeigen";
+    els.nextBtn.textContent = session.index === session.cards.length - 1 ? "Auswertung ansehen" : "Weiter";
     setActionMode("reveal");
     updateSessionStats();
     if (currentMode === "mc") renderMc(card, pair);
@@ -520,7 +664,7 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
 
   function renderMc(card, pair) {
     els.mcArea.hidden = false;
-    const activeCards = AppCore.filterCards(state.cards, state.profile.selectedDecks, state.profile.cutoffYear);
+    const activeCards = state.session.contextCards;
     AppCore.buildMcOptions(activeCards, card, state.session.direction).forEach((option) => {
       const button = document.createElement("button");
       button.type = "button";
@@ -534,7 +678,7 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
         });
         if (!correct) button.classList.add("isWrong");
         els.answer.hidden = false;
-        gradeCurrentCard(correct);
+        gradeCurrentCard(correct, { answer: option, source: "choice" });
       });
       els.mcArea.appendChild(button);
     });
@@ -544,31 +688,30 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
     els.typeArea.hidden = false;
     const check = () => {
       if (state.session?.graded) return;
+      if (!els.typeInput.value.trim()) {
+        els.typeInput.setAttribute("aria-invalid", "true");
+        els.modeHint.textContent = "Bitte tippe eine Antwort ein oder wähle „Nicht gewusst“.";
+        els.typeInput.focus();
+        return;
+      }
       els.answer.hidden = false;
-      gradeCurrentCard(AppCore.evaluateTypedAnswer(els.typeInput.value, pair.answer));
+      const correct = AppCore.evaluateTypedAnswer(els.typeInput.value, pair.answer);
+      els.typeInput.setAttribute("aria-invalid", String(!correct));
+      gradeCurrentCard(correct, { answer: els.typeInput.value.trim(), source: "typed" });
     };
     els.checkBtn.onclick = check;
     els.typeInput.onkeydown = (event) => {
-      if (event.key === "Enter") check();
+      if (event.key === "Enter") { event.preventDefault(); check(); }
     };
     window.setTimeout(() => els.typeInput.focus(), 100);
   }
 
-  function gradeCurrentCard(correct) {
+  function gradeCurrentCard(correct, response) {
     const session = state.session;
     if (!session || session.graded) return;
     const card = session.cards[session.index];
-    AppCore.applyGrade(state.progress, card, correct);
-    session.graded = true;
-    session.answered.push({ card, correct });
-    if (correct) {
-      session.correct += 1;
-      session.streak += 1;
-      session.bestStreak = Math.max(session.bestStreak, session.streak);
-    } else {
-      session.wrong += 1;
-      session.streak = 0;
-    }
+    const result = AppCore.gradeSession(state.progress, session, correct, response);
+    if (!result) return;
     if (session.currentMode === "mc") {
       $$("#mcArea button").forEach((button) => {
         button.disabled = true;
@@ -577,22 +720,38 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
     }
     els.typeInput.disabled = true;
     els.checkBtn.disabled = true;
-    AppCore.saveProgress(state.progress);
+    persist();
     updateSessionStats();
     updateDashboard();
     setActionMode("next");
+    const meta = AppCore.getCardMeta(card, state.progress);
+    const label = meta.isWeak ? "Unsicher" : meta.mastered ? "Beherrscht" : "Im Aufbau";
+    els.lastAnswer.textContent = `${correct ? "✓ Richtig" : "✕ Falsch"} · ${card.prompt} · ${label} · ${meta.state.correct}× richtig / ${meta.state.wrong}× falsch`;
+    els.lastAnswer.dataset.result = correct ? "correct" : "wrong";
+    els.answerFeedback.dataset.result = correct ? "correct" : "wrong";
+    els.feedbackTitle.textContent = correct
+      ? session.streak >= 3 ? `✓ Richtig! ${session.streak} in Folge.` : "✓ Richtig!"
+      : result.source === "reveal" ? "✕ Als nicht gewusst gespeichert" : "✕ Noch nicht richtig";
+    const nextDays = Math.round((meta.state.due - meta.state.lastSeen) / 86400000);
+    els.feedbackDetail.textContent = correct
+      ? `${label} · ${Math.min(5, meta.state.box)}/5 Lernstufen${meta.isWeak ? " · Noch einmal richtig, dann nicht mehr unsicher." : ` · Wiederholung in ${nextDays} ${nextDays === 1 ? "Tag" : "Tagen"}.`}`
+      : "Als falsch gespeichert. Diese Karte ist jetzt fällig und kommt in deine Fehler-Runde.";
+    els.answerFeedback.hidden = false;
+    els.nextBtn.focus();
   }
 
-  function startSession() {
+  function startSession(retry = false) {
     saveControls();
     els.summaryCard.hidden = true;
-    const cards = AppCore.chooseCards(state.cards, state.progress, {
+    const cards = retry ? AppCore.retryCards(state.displayedSummary, state.cards) : AppCore.chooseCards(state.cards, state.progress, {
       focus: state.profile.focus,
       count: state.profile.sessionSize,
       selectedDecks: state.profile.selectedDecks,
       cutoffYear: state.profile.cutoffYear,
     });
     if (cards.length === 0) {
+      state.session = null;
+      setPracticeActive(false);
       els.welcomeCard.hidden = true;
       els.playCard.hidden = true;
       els.emptyTraining.hidden = false;
@@ -600,64 +759,102 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
       els.emptyTrainingText.textContent = `Im gewählten Zeitraum gibt es gerade keine Karten für „${label}“. Wähle einen anderen Fokus oder erweitere den Zeitraum.`;
       return;
     }
-    state.session = {
-      mode: state.profile.mode,
-      direction: state.profile.direction,
-      cards,
-      index: 0,
-      graded: false,
-      correct: 0,
-      wrong: 0,
-      streak: 0,
-      bestStreak: 0,
-      answered: [],
-    };
+    const options = retry ? state.displayedSummary : state.profile;
+    // Freeze the question context: changing filters must never change an active answer.
+    const context = retry ? state.cards : AppCore.filterCards(state.cards, state.profile.selectedDecks, state.profile.cutoffYear);
+    state.session = AppCore.createSession(cards, options, context);
+    state.session.isRetry = retry;
+    setPracticeActive(true);
     renderCurrentQuestion();
+    els.playCard.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function nextQuestion() {
-    if (!state.session) return;
+    if (!state.session || !state.session.graded) return;
     state.session.index += 1;
     state.session.graded = false;
     renderCurrentQuestion();
   }
 
   function finishSession() {
+    if (!state.session) return;
     const summary = AppCore.buildSummary(state.session);
     state.profile.lastSummary = summary;
-    AppCore.saveProfile(state.profile);
+    persist();
     renderSummary(summary);
     els.playCard.hidden = true;
     els.summaryCard.hidden = false;
+    setPracticeActive(false);
+    state.session = null;
     els.summaryCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
     updateDashboard();
+    els.summaryTitle.focus({ preventScroll: true });
   }
 
   function renderSummary(summary) {
+    state.displayedSummary = summary;
+    els.onlyMistakes.checked = false;
+    els.summaryTitle.textContent = summary.total === 0 ? "Noch keine Antwort bewertet."
+      : summary.wrong === 0 ? "Alles richtig. Stark!" : "Runde geschafft.";
     els.summaryAccuracy.textContent = `${summary.accuracy}%`;
     els.summaryBestStreak.textContent = String(summary.bestStreak);
     els.summaryTotal.textContent = String(summary.total);
-    els.summaryRecommendation.textContent = summary.recommendation;
-    els.summaryWeakList.innerHTML = "";
-    const entries = summary.weakCards.length ? summary.weakCards : ["Keine Fehlkarten in dieser Runde."];
-    entries.forEach((entry) => {
+    els.summaryCounts.textContent = `${summary.correct} richtig · ${summary.wrong} falsch · ${summary.total} beantwortet`;
+    els.summaryRecommendation.textContent = summary.total === 0 ? "Starte eine neue Runde, wenn du bereit bist." : summary.recommendation;
+    const retryCount = AppCore.retryCards(summary, state.cards).length;
+    els.retryBtn.hidden = retryCount === 0;
+    els.retryBtn.textContent = `${retryCount} ${retryCount === 1 ? "Fehlerkarte" : "Fehlerkarten"} üben`;
+    renderResults();
+  }
+
+  function renderResults() {
+    els.summaryResults.innerHTML = "";
+    const results = state.displayedSummary?.results || [];
+    let visible = 0;
+    results.forEach((result, index) => {
+      if (els.onlyMistakes.checked && result.correct) return;
+      visible += 1;
       const item = document.createElement("li");
-      item.textContent = entry;
-      els.summaryWeakList.appendChild(item);
+      item.className = `resultItem ${result.correct ? "isCorrect" : "isWrong"}`;
+      item.value = index + 1;
+      const heading = document.createElement("strong");
+      heading.textContent = `${result.correct ? "✓ Richtig" : "✕ Falsch"} · ${result.card.deck} · ${AppCore.MODE_LABELS[result.mode]}`;
+      const question = document.createElement("p");
+      question.className = "resultQuestion";
+      question.textContent = result.question;
+      const submitted = document.createElement("p");
+      submitted.textContent = result.source === "self" ? `Selbst bewertet: ${result.correct ? "richtig gewusst" : "nicht gewusst"}`
+        : result.source === "reveal" ? `Lösung aufgedeckt${result.submittedAnswer ? ` · Eingabe: ${result.submittedAnswer}` : " · nicht gewusst"}`
+        : `Deine Antwort: ${result.submittedAnswer}`;
+      const expected = document.createElement("p");
+      expected.textContent = `Lösung: ${result.expectedAnswer}`;
+      item.appendChild(heading);
+      item.appendChild(question);
+      item.appendChild(submitted);
+      item.appendChild(expected);
+      els.summaryResults.appendChild(item);
     });
+    els.summaryEmpty.hidden = visible > 0;
+    els.summaryEmpty.textContent = results.length === 0 ? "In dieser Runde wurden keine Antworten bewertet."
+      : "Keine Fehler in dieser Runde. Stark!";
   }
 
   function restoreLastSummary() {
-    if (!state.profile.lastSummary) return;
+    // Legacy summaries contain no question/input log and cannot be reconstructed honestly.
+    if (state.profile.lastSummary?.schemaVersion !== 2 || !Array.isArray(state.profile.lastSummary.results)) return;
     renderSummary(state.profile.lastSummary);
+    els.welcomeCard.hidden = true;
     els.summaryCard.hidden = false;
   }
 
   function revealAnswer() {
     if (!state.session || state.session.graded) return;
     els.answer.hidden = false;
-    if (state.session.currentMode === "cards") setActionMode("rate");
-    else gradeCurrentCard(false);
+    if (state.session.currentMode === "cards") {
+      setActionMode("rate");
+      els.modeHint.textContent = "War deine gedachte Antwort richtig? Wähle eine Bewertung – erst dann zählt sie.";
+      els.goodBtn.focus();
+    } else gradeCurrentCard(false, { answer: els.typeInput.value.trim(), source: "reveal" });
   }
 
   function resetProgress() {
@@ -667,6 +864,10 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
     state.profile.lastSummary = null;
     AppCore.saveProfile(state.profile);
     state.session = null;
+    setPracticeActive(false);
+    state.displayedSummary = null;
+    els.lastAnswer.textContent = "Jede bewertete Antwort zählt – in allen Lernmodi.";
+    delete els.lastAnswer.dataset.result;
     els.playCard.hidden = true;
     els.emptyTraining.hidden = true;
     els.summaryCard.hidden = true;
@@ -700,18 +901,26 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
   async function importProgress(file) {
     try {
       const payload = JSON.parse(await file.text());
-      if (!payload || typeof payload.progress !== "object" || typeof payload.profile !== "object") {
+      const isRecord = (value) => value && typeof value === "object" && !Array.isArray(value);
+      if (!payload || !isRecord(payload.progress) || !isRecord(payload.profile)) {
         throw new Error("Ungültiges Format");
       }
       state.progress = payload.progress;
       state.profile = { ...AppCore.PROFILE_DEFAULTS, ...payload.profile };
-      AppCore.saveProgress(state.progress);
-      AppCore.saveProfile(state.profile);
+      state.session = null;
+      setPracticeActive(false);
+      els.playCard.hidden = true;
+      els.emptyTraining.hidden = true;
+      els.welcomeCard.hidden = false;
+      els.summaryCard.hidden = true;
+      state.displayedSummary = null;
+      els.lastAnswer.textContent = "Sicherung geladen. Starte eine neue Runde.";
+      delete els.lastAnswer.dataset.result;
+      persist();
       restoreControls();
       updateTheme();
       createDeckFilter();
       updateDashboard();
-      els.summaryCard.hidden = !state.profile.lastSummary;
       restoreLastSummary();
       showDataStatus("Sicherung geladen.");
     } catch {
@@ -722,7 +931,11 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
   }
 
   function bindEvents() {
-    els.startBtn.addEventListener("click", startSession);
+    els.startBtn.addEventListener("click", () => startSession());
+    els.anotherRoundBtn.addEventListener("click", () => startSession());
+    els.quickStartBtn.addEventListener("click", () => { els.sessionSize.value = "10"; startSession(); });
+    els.retryBtn.addEventListener("click", () => startSession(true));
+    els.onlyMistakes.addEventListener("change", renderResults);
     els.toggleAllDecksBtn.addEventListener("click", toggleAllDecks);
     els.modeSelect.addEventListener("change", () => { saveControls(); updateDashboard(); });
     els.focusSelect.addEventListener("change", () => { saveControls(); updateDashboard(); });
@@ -733,6 +946,7 @@ if (typeof window !== "undefined" && !window.__MERKZAHLEN_TEST__) {
     els.goodBtn.addEventListener("click", () => gradeCurrentCard(true));
     els.badBtn.addEventListener("click", () => gradeCurrentCard(false));
     els.nextBtn.addEventListener("click", nextQuestion);
+    els.finishBtn.addEventListener("click", finishSession);
     els.resetBtn.addEventListener("click", () => els.resetDialog.showModal());
     els.cancelResetBtn.addEventListener("click", () => els.resetDialog.close());
     els.confirmResetBtn.addEventListener("click", () => { resetProgress(); els.resetDialog.close(); });

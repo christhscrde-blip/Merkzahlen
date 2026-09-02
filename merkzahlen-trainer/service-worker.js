@@ -1,4 +1,4 @@
-const CACHE = "merkzahlen-v4";
+const CACHE = "merkzahlen-v5";
 const ASSETS = [
   "./",
   "./index.html",

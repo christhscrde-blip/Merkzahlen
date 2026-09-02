@@ -24,14 +24,19 @@
       <button id="installBtn" class="btn btnQuiet btnSmall" hidden>App installieren</button>
     </header>
 
-    <section class="overview" aria-label="Lernstand">
-      <div class="stat">
-        <span>Fällig</span>
-        <strong id="statDue">0</strong>
+    <section class="learningOverview" aria-label="Lernstand">
+      <div class="overviewHead">
+        <div><p class="eyebrow">Dein Lernstand</p><p id="catalogProgress">56 Merkzahlen</p></div>
+        <p class="dueLabel"><strong id="statDue">0</strong> jetzt fällig</p>
       </div>
+      <div class="overview">
       <div class="stat">
         <span>Neu</span>
         <strong id="statNew">0</strong>
+      </div>
+      <div class="stat">
+        <span>Im Aufbau</span>
+        <strong id="statLearning">0</strong>
       </div>
       <div class="stat">
         <span>Unsicher</span>
@@ -41,15 +46,23 @@
         <span>Beherrscht</span>
         <strong id="statMastered">0</strong>
       </div>
+      </div>
+      <div id="masteryTrack" class="masteryTrack" aria-hidden="true"></div>
       <p id="statAccuracy" class="accuracy">Noch keine Antworten</p>
+      <p id="lastAnswer" class="lastAnswer">Jede bewertete Antwort zählt – in allen Lernmodi.</p>
+      <details class="progressHelp"><summary>Was bedeuten die Zahlen?</summary>
+        <p>Die vier Gruppen ergeben zusammen deine ausgewählten Merkzahlen. Neu = noch nicht bewertet. Unsicher = nach einem Fehler noch keine zwei richtigen Antworten in Folge. Im Aufbau = bereits geübt. Beherrscht = mindestens fünf richtige Antworten in Folge.</p>
+        <p>Fällig zeigt zusätzlich, welche geübten Karten wieder dran sind. Falsche Antworten sind sofort fällig. Richtige Antworten verlängern den Abstand auf 1, 3, 7, 14, 30 oder 60 Tage. Die Gesamt-Trefferquote ist gerundet; die Antwortzähler sind exakt.</p>
+      </details>
     </section>
+    <p id="saveWarning" class="saveWarning" role="alert" hidden>Dein Browser kann den Lernstand gerade nicht speichern. Die Runde läuft weiter; sichere deine Daten vor dem Schließen.</p>
 
     <main class="workspace">
       <aside class="setup panel" aria-labelledby="setupTitle">
         <div class="sectionHead">
           <div>
             <p class="eyebrow">Neue Runde</p>
-            <h1 id="setupTitle">Was möchtest du lernen?</h1>
+            <h1 id="setupTitle">Deine nächste Runde</h1>
           </div>
         </div>
 
@@ -84,7 +97,7 @@
 
           <label class="field">
             <span>Karten</span>
-            <input id="sessionSize" type="number" inputmode="numeric" min="5" max="60" value="16" />
+            <input id="sessionSize" type="number" inputmode="numeric" min="5" max="60" value="10" />
           </label>
 
           <label class="field fieldWide">
@@ -145,8 +158,9 @@
           <div class="dateMotif" aria-hidden="true">1096</div>
           <div>
             <p class="eyebrow">Bereit</p>
-            <h2>Eine ruhige Runde. Kein Schnickschnack.</h2>
-            <p>Wähle links Zeitraum und Lernmodus. Die wichtigen Karten kommen zuerst.</p>
+            <h2>Eine Runde näher dran.</h2>
+            <p>Starte mit 10 Karten. Neue und unsichere Merkzahlen kommen zuerst – nach jeder Antwort siehst du deinen Fortschritt.</p>
+            <button id="quickStartBtn" class="btn btnPrimary" type="button">10 Karten lernen</button>
           </div>
         </article>
 
@@ -163,30 +177,41 @@
               <h2 id="playTitle">Lernrunde</h2>
             </div>
             <div class="badges">
-              <span id="qIndex" class="badge">1 / 16</span>
+              <span id="qIndex" class="badge">1 / 10</span>
               <span id="qModeLabel" class="badge">Karteikarten</span>
               <span id="qStreak" class="badge">Serie 0</span>
+              <button id="finishBtn" class="textButton" type="button">Runde beenden</button>
             </div>
           </header>
 
-          <progress id="qProgress" class="roundProgress" value="1" max="16" aria-label="Fortschritt: 1 von 16">1 von 16</progress>
+          <div class="roundTrack">
+            <progress id="qProgress" class="srOnly" value="0" max="10" aria-label="Fortschritt: 0 von 10 beantwortet">0 von 10 beantwortet</progress>
+            <div id="answerTrack" class="answerTrack" aria-hidden="true"></div>
+            <p id="roundLabel" class="microcopy">0 von 10 beantwortet</p>
+          </div>
 
           <div class="questionStage">
             <p id="questionContext" class="questionContext">Klasse 7 · Neu</p>
             <div id="question" class="question">1096</div>
             <div id="answer" class="answer" hidden>Beginn der Kreuzzüge</div>
+            <p id="modeHint" class="modeHint"></p>
 
             <div id="mcArea" class="optionGrid" hidden></div>
             <div id="typeArea" class="typeArea" hidden>
               <label class="srOnly" for="typeInput">Antwort</label>
-              <input id="typeInput" type="text" autocomplete="off" placeholder="Antwort eintippen" />
+              <input id="typeInput" type="text" autocomplete="off" placeholder="Antwort eintippen" aria-describedby="modeHint" />
               <button id="checkBtn" class="btn btnQuiet" type="button">Prüfen</button>
+            </div>
+
+            <div id="answerFeedback" class="answerFeedback" role="status" aria-live="polite" aria-atomic="true" hidden>
+              <strong id="feedbackTitle"></strong>
+              <p id="feedbackDetail"></p>
             </div>
 
             <div class="actionRow">
               <button id="revealBtn" class="btn btnQuiet" type="button">Antwort zeigen</button>
-              <button id="badBtn" class="btn btnQuiet" type="button" hidden>Noch nicht</button>
-              <button id="goodBtn" class="btn btnPositive" type="button" hidden>Sitzt</button>
+              <button id="badBtn" class="btn btnQuiet" type="button" hidden>✕ Falsch / nicht gewusst</button>
+              <button id="goodBtn" class="btn btnPositive" type="button" hidden>✓ Richtig gewusst</button>
               <button id="nextBtn" class="btn btnPrimary" type="button" hidden>Weiter</button>
             </div>
           </div>
@@ -202,19 +227,26 @@
           <div class="sectionHead">
             <div>
               <p class="eyebrow">Runde beendet</p>
-              <h2>Deine Auswertung</h2>
+              <h2 id="summaryTitle" tabindex="-1">Runde geschafft.</h2>
             </div>
           </div>
+          <p id="summaryCounts" class="summaryCounts"></p>
           <div class="summaryStats">
             <div><strong id="summaryAccuracy">0%</strong><span>Trefferquote</span></div>
             <div><strong id="summaryBestStreak">0</strong><span>Beste Serie</span></div>
             <div><strong id="summaryTotal">0</strong><span>Bearbeitet</span></div>
           </div>
           <p id="summaryRecommendation" class="recommendation">–</p>
-          <div class="weakList">
-            <h3>Noch einmal ansehen</h3>
-            <ul id="summaryWeakList"></ul>
+          <div class="actionRow">
+            <button id="retryBtn" class="btn btnPrimary" type="button" hidden>Fehler üben</button>
+            <button id="anotherRoundBtn" class="btn btnQuiet" type="button">Nächste Runde</button>
           </div>
+          <div class="resultHead">
+            <h3>Deine Antworten</h3>
+            <label class="resultFilter"><input id="onlyMistakes" type="checkbox" /> Nur Fehler</label>
+          </div>
+          <p id="summaryEmpty" class="microcopy" hidden>Keine Fehler in dieser Runde. Stark!</p>
+          <ol id="summaryResults" class="summaryResults"></ol>
         </article>
       </section>
     </main>
