@@ -1,11 +1,11 @@
-const CACHE = "merkzahlen-v7";
+const CACHE = "merkzahlen-v8";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
-  "./styles.css?v=7",
-  "./app.js?v=7",
+  "./styles.css?v=8",
+  "./app.js?v=8",
   "./data.json",
   "./manifest.json",
   "./icon-192.png",
