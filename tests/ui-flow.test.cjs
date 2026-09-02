@@ -142,6 +142,7 @@ for (const mode of ["cards", "mc", "type", "mix"]) {
       assert.equal(el("summaryResults").children.length, 19);
       assert.ok(el("summaryResults").children.every((node) => node.classList.contains("isWrong")));
       const reload = await mount(app.storage);
+      assert.match(reload.nodes.get("summaryContext").textContent, /Letzte abgeschlossene Runde/);
       assert.equal(reload.nodes.get("summaryCounts").textContent, el("summaryCounts").textContent);
       assert.equal(reload.nodes.get("summaryResults").children.length, 56);
       reload.nodes.get("retryBtn").click();
