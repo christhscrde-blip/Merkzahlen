@@ -12,6 +12,23 @@ Eine kleine, installierbare Lern-App für historische Merkzahlen der Klassen 7 b
 - Sicherung und Wiederherstellung des Lernstands als JSON
 - drei reduzierte Farbstile
 - installierbare PWA mit Offline-Cache
+- eindeutiges Richtig/Falsch-Feedback und Antwortverlauf in jedem Modus
+- vollständige Abschlussauswertung mit Frage, Eingabe, Lösung und Fehler-Wiederholung
+
+## Lernstand und Auswertung
+
+Jede bewertete Aufgabe wird genau einmal im Antwortprotokoll gespeichert. Daraus entstehen die Runden-Zähler, die vollständige Auswertung und die gezielte Fehler-Runde. Das Aufdecken einer Karteikarte zählt erst nach der Selbstbewertung. Im Tipp- und Auswahlmodus zählt „Nicht gewusst“ als falsch; eine leere Eingabe allein zählt nicht.
+
+Der Rundenzähler startet bei null und zählt bewertete Antworten, nicht angezeigte Fragen. Die Lernstand-Gruppen Neu, Im Aufbau, Unsicher und Beherrscht sind überschneidungsfrei. Fällig ist eine zusätzliche zeitliche Markierung. Nach einem Fehler ist die Karte sofort fällig und startet wieder bei Lernstufe null. Zwei richtige Antworten in Folge lösen „Unsicher“ auf; ab Stufe fünf gilt eine Karte als beherrscht. Die Abstände richtiger Antworten sind 1, 3, 7, 14, 30 und 60 Tage. Das ist ein transparentes, einfaches Wiederholsystem, kein wissenschaftlich kalibriertes Gedächtnismodell.
+
+Vorhandene Antwortzähler bleiben erhalten. Die Migration korrigiert alte Fehlantworten, die irrtümlich 60 Tage zurückgestellt wurden. Alte Abschlusslisten ohne tatsächliches Antwortprotokoll werden nicht rekonstruiert oder als verifizierte neue Auswertung angezeigt.
+
+Tippantworten werden lokal anhand normalisierter Datumswerte und Schlüsselwörter geprüft, nicht mit einer semantischen KI. Datumsgenauigkeit und alle Ereignisse doppelt vergebener Merkzahlen bleiben erforderlich. Abweichende korrekte Formulierungen können weiterhin eine Selbstprüfung mit der angezeigten Kataloglösung erfordern.
+
+## Lernapp-Referenzen
+
+- [Duolingos Erläuterung des Lernpfads](https://blog.duolingo.com/new-duolingo-home-screen-design/): kleine Einheiten, ein klarer nächster Schritt und integrierte Wiederholung. Übertragen auf diese App: 10-Karten-Schnellstart, Antwortserie und direkter Einstieg in die Fehler-Runde. Keine zusätzlichen Kataloginhalte, Ranglisten oder Herzen.
+- [Ankis Lernablauf](https://docs.ankiweb.net/studying.html): erst erinnern, dann vergleichen und ehrlich bewerten; nächster Wiederholungszeitpunkt wird sichtbar. Übertragen: ausdrücklich beschriftete Selbstbewertung, unmittelbares Feedback und verständliche Lernstufen.
 
 ## Lokal starten
 
@@ -30,6 +47,8 @@ npm test
 ```
 
 Zusätzlich stehen unter `merkzahlen-trainer/tests.html` ein Browser-Testlauf und unter `merkzahlen-trainer/smoke.html` ein einfacher Oberflächentest bereit. GitHub Actions führt die Node-Tests bei Pushes und Pull Requests automatisch aus.
+
+Die Node-Suite enthält vollständige 56-Karten-Durchläufe für jeden Modus in beiden Richtungen. `ui-flow.test.cjs` führt die echten App-Ereignishandler mit einem isolierten DOM-Testdouble aus und prüft auch bewusst falsche Antworten, leere Eingaben, Doppelbewertung, Speicherfehler, Neuladen, vorzeitiges Rundenende und die Zuordnung aller Auswertungseinträge. Diese Tests ersetzen keine visuelle Prüfung im echten Browser. Der Daten-Hash schützt den unveränderten Schulkatalog.
 
 ## Daten
 
