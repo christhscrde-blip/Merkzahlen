@@ -42,9 +42,9 @@ test("lädt online frische PWA-Dateien und nutzt den Cache nur als Offline-Fallb
   const cacheFallback = serviceWorker.indexOf("const cached = await caches.match(event.request)");
   assert.ok(networkRead >= 0, "Netzwerkabruf fehlt");
   assert.ok(cacheFallback > networkRead, "Cache darf den Netzwerkabruf online nicht überholen");
-  assert.match(serviceWorker, /const CACHE = "merkzahlen-v7"/);
+  assert.match(serviceWorker, /const CACHE = "merkzahlen-v8"/);
   assert.match(serviceWorker, /cache: "no-cache"/);
-  for (const asset of ["app.js?v=7", "styles.css?v=7"]) {
+  for (const asset of ["app.js?v=8", "styles.css?v=8"]) {
     assert.ok(html.includes(asset), `${asset}: HTML-Version fehlt`);
     assert.ok(serviceWorker.includes(asset), `${asset}: Offline-Version fehlt`);
   }
