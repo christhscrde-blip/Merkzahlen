@@ -110,7 +110,7 @@ for (const mode of ["cards", "mc", "type", "mix"]) {
       assert.equal(summary.bestStreak, 2);
       assert.equal(Object.values(progress).reduce((sum, entry) => sum + entry.seen, 0), 56);
       const restored = JSON.parse(JSON.stringify(summary));
-      assert.deepEqual(Core.retryCards(restored, cards).map((entry) => entry.id), expectedWrong);
+      assert.deepEqual(Core.retryCards(restored, cards, Core.createSeededRandom(1)).map((entry) => entry.id).sort(), expectedWrong.sort());
       assert.equal(Core.gradeSession(progress, session, true), null);
       // Summary is independent of stale counters and later changes to the round.
       session.correct = 999;
@@ -129,4 +129,14 @@ test("Fehler-Wiederholung enthält nur tatsächlich falsch beantwortete Katalogk
   const summary = Core.buildSummary(session);
   assert.deepEqual(Core.retryCards(summary, cards), [card]);
   assert.deepEqual(Core.retryCards({ results: [{ card: { id: "unbekannt" }, correct: false }] }, cards), []);
+});
+
+test("Fehler-Runde berücksichtigt spätere Korrekturen derselben Merkzahl", () => {
+  const results = [
+    { card, correct: false },
+    { card, correct: true },
+  ];
+  assert.deepEqual(Core.retryCards({ results }, cards), [card], "eine Korrektur lässt die Karte noch unsicher");
+  results.push({ card, correct: true });
+  assert.deepEqual(Core.retryCards({ results }, cards), [], "zwei Korrekturen lösen den Fehler auf");
 });
